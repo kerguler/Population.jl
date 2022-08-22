@@ -11,7 +11,7 @@ This is the standalone Julia library of the dynamically-structured matrix popula
 Just type this in Julia:
 ```julia
 using Pkg
-Pkg.add("Package Name")
+Pkg.add("sPop2")
 ```
 
 ## Using the library

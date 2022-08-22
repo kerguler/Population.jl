@@ -1,7 +1,7 @@
 name = "sPop2"
 uuid = "11b83ad2-e65e-47ba-870b-1ff818f3e30a"
 authors = ["Kamil Erguler <k.erguler@cyi.ac.cy>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"

@@ -25,13 +25,20 @@ export acc_haz, age_haz,
         age_data_det, age_data_sto,
         acc_data_det, acc_data_sto,
         stochastic_update, deterministic_update,
-        population, step_pop, add_pop, get_pop
+        population, step_pop, add_pop, get_pop,
+        set_eps
 
 using Distributions
 using Random: rand
 
-const EPS = 14
 const ACCTHR = 1.0
+
+EPS = 14
+function set_eps(eps::Int64)
+    global EPS
+    EPS = eps == 0 ? 14 : eps
+    return EPS
+end
 
 # --------------------------------------------------------------------------------
 # hazard type
@@ -177,54 +184,35 @@ end
 
 
 # --------------------------------------------------------------------------------
-# data type
+# population data types
 # --------------------------------------------------------------------------------
 
-abstract type data_types end
-abstract type age_data <: data_types end
-abstract type acc_data <: data_types end
+abstract type pop_data_types end
+abstract type sto_data <: pop_data_types end
+abstract type det_data <: pop_data_types end
 
-# age-development data ------------------------------------------------------------
+# combined age- and acumulated-development population members -------------------
+
+struct member_key
+    age::Int64
+    dev::Float64
+end
 
 # deterministic
-struct age_data_det <: age_data
-    n_current::Vector{Float64}
-    n_next::Vector{Float64} # starts out 1 smaller than n_current
-    function age_data_det(n=100)
-        @assert n > 2
-        new(zeros(Float64, n), zeros(Float64, n-1))
+struct pop_data_det <: det_data
+    poptable_current::Dict{member_key, Float64}
+    poptable_next::Dict{member_key, Float64}
+    function pop_data_det()
+        new(Dict{member_key, Float64}(),Dict{member_key, Float64}())
     end
 end
 
 # stochastic
-struct age_data_sto <: age_data
-    n_current::Vector{Int64}
-    n_next::Vector{Int64} # starts out 1 smaller than n_current
-    function age_data_sto(n=100)
-        @assert n > 2
-        new(zeros(Int64, n), zeros(Int64, n-1))
-    end
-end
-
-
-
-# accumulation development data ------------------------------------------------------------
-
-# deterministic
-struct acc_data_det <: acc_data
-    devtable_current::Dict{Float64, Float64}
-    devtable_next::Dict{Float64, Float64}
-    function acc_data_det()
-        new(Dict{Float64, Float64}(),Dict{Float64, Float64}())
-    end
-end
-
-# stochastic
-struct acc_data_sto <: acc_data
-    devtable_current::Dict{Float64, Int64}
-    devtable_next::Dict{Float64, Int64}
-    function acc_data_sto()
-        new(Dict{Float64, Int64}(),Dict{Float64, Int64}())
+struct pop_data_sto <: sto_data
+    poptable_current::Dict{member_key, Int64}
+    poptable_next::Dict{member_key, Int64}
+    function pop_data_sto()
+        new(Dict{member_key, Int64}(),Dict{member_key, Int64}())
     end
 end
 
@@ -251,33 +239,38 @@ end
 # population struct
 # --------------------------------------------------------------------------------
 
-struct population{T<:data_types,H<:haz_types,F<:update_types}
+struct population{T<:pop_data_types,H<:haz_types,F<:update_types}
     data::T
     hazard::H
     update::F
-    function population(d::T, h::H, u::F) where {T <: age_data, H <: age_haz, F <: update_types}
-        new{T,H,F}(d, h, u)
+    function population(d::T, h::H) where {T <: pop_data_types, H <: age_haz}
+        u::update_types = T <: det_data ? deterministic_update() : stochastic_update()
+        new{T,H,update_types}(d, h, u)
     end
-    function population(d::T, h::H, u::F) where {T <: acc_data, H <: acc_haz, F <: update_types}
-        new{T,H,F}(d, h, u)
+    function population(d::T, h::H) where {T <: pop_data_types, H <: acc_haz}
+        u::update_types = T <: det_data ? deterministic_update() : stochastic_update()
+        new{T,H,update_types}(d, h, u)
     end
 end
 
-function add_pop(pop::population{T,H,F}, n::Number, age::Number) where {T<:age_data,H,F}
-    pop.data.n_current[max(age,1)] = n
+function add_pop(pop::population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:pop_data_types,H<:haz_types,F<:update_types}
+    key = member_key(max(age,1), max(0.0,round(dev, digits=EPS)))
+    pop.data.poptable_current[key] = n
 end
 
-function add_pop(pop::population{T,H,F}, n::Number, dev::Number) where {T<:acc_data,H,F}
-    pop.data.devtable_current[max(0.0,dev)] = n
+function add_pop(popto::population{T,Ht,Ft}, popfrom::population{T,Hf,Ff}) where {T<:pop_data_types,Ht<:haz_types,Hf<:haz_types,Ft<:update_types,Ff<:update_types}
+    for (q,n) in popfrom.data.poptable_current
+        if haskey(popto.data.poptable_current, q)
+            popto.data.poptable_current[q] += n
+        else 
+            popto.data.poptable_current[q] = n
+        end
+    end
 end
 
-function get_pop(pop::population{T,H,F}) where {T<:age_data,H,F}
-    sum(pop.data.n_current)
-end
-
-function get_pop(pop::population{T,H,F}) where {T<:acc_data,H,F}
-    size = zero(valtype(pop.data.devtable_current))
-    for n in values(pop.data.devtable_current)
+function get_pop(pop::population{T,H,F}) where {T<:pop_data_types,H,F}
+    size = zero(valtype(pop.data.poptable_current))
+    for n in values(pop.data.poptable_current)
         size += n
     end
     return size
@@ -288,7 +281,7 @@ end
 # --------------------------------------------------------------------------------
 
 # step function for age-dependent maturation
-function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T <: age_data, H <: age_haz, F <: update_types}
+function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T <: pop_data_types, H <: age_haz, F <: update_types}
     @assert length(pop.data.n_next) == length(pop.data.n_current) - 1    
     k, theta = pop.hazard.pars(devmn, devsd)
     dead = zero(eltype(pop.data.n_current))
@@ -329,13 +322,13 @@ function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::N
 end
 
 # step function for accumulation-dependent maturation
-function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:acc_data,H<:acc_haz,F<:update_types}
+function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:pop_data_types,H<:acc_haz,F<:update_types}
     k, theta = pop.hazard.pars(devmn, devsd)
-    dead = zero(keytype(pop.data.devtable_current))
-    developed = zero(keytype(pop.data.devtable_current))
-    size = zero(keytype(pop.data.devtable_current))
-    empty!(pop.data.devtable_next)
-    for (q,n) in pop.data.devtable_current
+    dead = zero(valtype(pop.data.poptable_current))
+    developed = zero(valtype(pop.data.poptable_current))
+    size = zero(valtype(pop.data.poptable_current))
+    empty!(pop.data.poptable_next)
+    for (q,n) in pop.data.poptable_current
         if n == 0
             continue
         end
@@ -348,7 +341,7 @@ function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::N
         # development
         if theta > 0.0 && k > 0.0
             dev = 0
-            while n > zero(keytype(pop.data.devtable_current))
+            while n > zero(valtype(pop.data.poptable_current))
                 q2 = round(q + dev/k, digits=EPS)
                 if q2 >= ACCTHR
                     developed += n
@@ -360,24 +353,24 @@ function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::N
                     n2 = pop.update(n, p)
                     developed += n2
                     n -= n2
-                    if haskey(pop.data.devtable_next, q2)
-                        pop.data.devtable_next[q2] += n2
+                    if haskey(pop.data.poptable_next, q2)
+                        pop.data.poptable_next[q2] += n2
                     else 
-                        pop.data.devtable_next[q2] = n2
+                        pop.data.poptable_next[q2] = n2
                     end
                     dev += 1
                 end
             end
         else 
-            pop.data.devtable_next[q] = n
+            pop.data.poptable_next[q] = n
         end
     end
-    empty!(pop.data.devtable_current)
-    for (q,n) in pop.data.devtable_next
-        pop.data.devtable_current[q] = n
+    empty!(pop.data.poptable_current)
+    for (q,n) in pop.data.poptable_next
+        pop.data.poptable_current[q] = n
         size += n
     end
-    return size, developed, dead
+    return size, developed, dead, devtable
 end
 
 end
