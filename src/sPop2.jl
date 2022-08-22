@@ -18,15 +18,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 module sPop2
 
-export acc_haz, age_haz, 
+export acc_haz, age_haz, haz_types,
         acc_fixed, acc_pascal, acc_erlang,
         age_fixed, age_nbinom, age_gamma, 
-        age_data, acc_data,
-        age_data_det, age_data_sto,
-        acc_data_det, acc_data_sto,
-        stochastic_update, deterministic_update,
+        pop_data_det, pop_data_sto,
         population, step_pop, add_pop, get_pop,
-        set_eps
+        set_eps, empty_pop, get_poptable
 
 using Distributions
 using Random: rand
@@ -48,6 +45,18 @@ abstract type haz_types end
 abstract type acc_haz <: haz_types end
 abstract type age_haz <: haz_types end
 
+function acc_hazard_calc(age::Number, dev::Number, hazard::acc_haz, k::Number, theta::Number)
+    h0 = dev == 0 ? 0.0 : hazard.eval(dev - 1, theta)
+    h1 = hazard.eval(dev, theta)
+    h0 == 1.0 ? 1.0 : (h1 - h0) / (1.0 - h0)
+end
+
+function age_hazard_calc(age::Number, dev::Number, hazard::age_haz, k::Number, theta::Number)
+    h0 = hazard.eval(age - 1, k, theta)
+    h1 = hazard.eval(age, k, theta)
+    h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0)
+end
+
 # accumulation types ------------------------------------------------------------
 
 # fixed accumulation
@@ -64,8 +73,9 @@ end
 struct acc_fixed <: acc_haz
     pars::Function
     eval::Function
+    func::Function
     function acc_fixed()
-        new(acc_fixed_pars, acc_fixed_haz)
+        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc)
     end
 end
 
@@ -88,8 +98,9 @@ end
 struct acc_pascal <: acc_haz
     pars::Function
     eval::Function
+    func::Function
     function acc_pascal()
-        new(acc_pascal_pars, acc_pascal_haz)
+        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc)
     end
 end
 
@@ -116,8 +127,9 @@ end
 struct acc_erlang <: acc_haz
     pars::Function
     eval::Function
+    func::Function
     function acc_erlang()
-        new(acc_erlang_pars, acc_erlang_haz)
+        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc)
     end
 end
 
@@ -138,8 +150,9 @@ end
 struct age_fixed <: age_haz
     pars::Function
     eval::Function
+    func::Function
     function age_fixed()
-        new(age_fixed_pars, age_fixed_haz)
+        new(age_fixed_pars, age_fixed_haz, age_hazard_calc)
     end
 end
 
@@ -158,8 +171,9 @@ end
 struct age_nbinom <: age_haz
     pars::Function
     eval::Function
+    func::Function
     function age_nbinom()
-        new(age_nbinom_pars, age_nbinom_haz)
+        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc)
     end
 end
 
@@ -177,8 +191,9 @@ end
 struct age_gamma <: age_haz
     pars::Function
     eval::Function
+    func::Function
     function age_gamma()
-        new(age_gamma_pars, age_gamma_haz)
+        new(age_gamma_pars, age_gamma_haz, age_hazard_calc)
     end
 end
 
@@ -196,24 +211,65 @@ abstract type det_data <: pop_data_types end
 struct member_key
     age::Int64
     dev::Float64
+    function member_key(a::Int64, d::Float64)
+        new(a, round(d, digits=EPS))
+    end
+end
+
+function add_key(data::Dict{member_key, Float64}, key::member_key, n::Float64)
+    if haskey(data, key)
+        data[key] += n
+    else
+        data[key] = n
+    end
+end
+
+function add_key(data::Dict{member_key, Int64}, key::member_key, n::Int64)
+    if haskey(data, key)
+        data[key] += n
+    else
+        data[key] = n
+    end
 end
 
 # deterministic
 struct pop_data_det <: det_data
     poptable_current::Dict{member_key, Float64}
     poptable_next::Dict{member_key, Float64}
+    poptable_done::Dict{member_key, Float64}
     function pop_data_det()
-        new(Dict{member_key, Float64}(),Dict{member_key, Float64}())
+        new(Dict{member_key, Float64}(),Dict{member_key, Float64}(),Dict{member_key, Float64}())
     end
+end
+
+function get_poptable(poptable::Dict{member_key, Float64})
+    ra = Dict{Int64, Float64}()
+    rd = Dict{Float64, Float64}()
+    for (x,n) in poptable
+        ra[x.age] = haskey(ra,x.age) ? ra[x.age] + n : n
+        rd[x.dev] = haskey(rd,x.dev) ? rd[x.dev] + n : n
+    end
+    return ra, rd
 end
 
 # stochastic
 struct pop_data_sto <: sto_data
     poptable_current::Dict{member_key, Int64}
     poptable_next::Dict{member_key, Int64}
+    poptable_done::Dict{member_key, Int64}
     function pop_data_sto()
-        new(Dict{member_key, Int64}(),Dict{member_key, Int64}())
+        new(Dict{member_key, Int64}(),Dict{member_key, Int64}(),Dict{member_key, Int64}())
     end
+end
+
+function get_poptable(poptable::Dict{member_key, Int64})
+    ra = Dict{Int64, Int64}()
+    rd = Dict{Float64, Int64}()
+    for (x,n) in poptable
+        add_key(ra, x.age, n)
+        add_key(rd, x.dev, n)
+    end
+    return ra, rd
 end
 
 # --------------------------------------------------------------------------------
@@ -254,7 +310,7 @@ struct population{T<:pop_data_types,H<:haz_types,F<:update_types}
 end
 
 function add_pop(pop::population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:pop_data_types,H<:haz_types,F<:update_types}
-    key = member_key(max(age,1), max(0.0,round(dev, digits=EPS)))
+    key = member_key(max(age,0), max(0.0,dev))
     pop.data.poptable_current[key] = n
 end
 
@@ -277,61 +333,34 @@ function get_pop(pop::population{T,H,F}) where {T<:pop_data_types,H,F}
 end
 
 # --------------------------------------------------------------------------------
+# renew a population
+# --------------------------------------------------------------------------------
+
+function empty_pop(pop::population{T,H,F}) where {T<:pop_data_types,H<:haz_types,F<:update_types}
+    empty!(pop.data.poptable_current)
+    empty!(pop.data.poptable_next)
+    empty!(pop.data.poptable_done)
+    #
+    return true
+end
+
+# --------------------------------------------------------------------------------
 # step function
 # --------------------------------------------------------------------------------
 
-# step function for age-dependent maturation
-function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T <: pop_data_types, H <: age_haz, F <: update_types}
-    @assert length(pop.data.n_next) == length(pop.data.n_current) - 1    
-    k, theta = pop.hazard.pars(devmn, devsd)
-    dead = zero(eltype(pop.data.n_current))
-    developed = zero(eltype(pop.data.n_current))
-    for i in 1:length(pop.data.n_current)
-        if pop.data.n_current[i] == 0
-            continue
-        else
-            n = pop.data.n_current[i]
-            # mortality
-            if death > 0.0
-                dd = pop.update(n, death)
-                dead += dd
-                n -= dd
-            end
-            # development
-            if theta > 0.0 && k > 0.0
-                h0 = pop.hazard.eval(i - 1, k, theta)
-                h1 = pop.hazard.eval(i, k, theta)
-                p = h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0)
-                n2 = pop.update(n, p)
-                developed += n2
-                n -= n2
-            end
-            # check if need to extend
-            if i == length(pop.data.n_current) && n > zero(eltype(pop.data.n_current))
-                append!(pop.data.n_next, zero(eltype(pop.data.n_next)))
-                append!(pop.data.n_current, zero(eltype(pop.data.n_current)))
-            end
-            pop.data.n_next[i] = n
-        end
-    end
-    pop.data.n_current[1] = 0
-    pop.data.n_current[2:end] = pop.data.n_next
-    pop.data.n_next .= zero(eltype(pop.data.n_next))
-    size = sum(pop.data.n_current)
-    return size, developed, dead
-end
-
-# step function for accumulation-dependent maturation
-function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:pop_data_types,H<:acc_haz,F<:update_types}
+function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:pop_data_types,H<:haz_types,F<:update_types}
     k, theta = pop.hazard.pars(devmn, devsd)
     dead = zero(valtype(pop.data.poptable_current))
     developed = zero(valtype(pop.data.poptable_current))
     size = zero(valtype(pop.data.poptable_current))
+    empty!(pop.data.poptable_done)
     empty!(pop.data.poptable_next)
     for (q,n) in pop.data.poptable_current
         if n == 0
             continue
         end
+        # age
+        age = q.age + one(q.age)
         # mortality
         if death > 0.0
             dd = pop.update(n, death)
@@ -339,38 +368,45 @@ function step_pop(pop::population{T,H,F}, devmn::Number, devsd::Number, death::N
             n -= dd
         end
         # development
-        if theta > 0.0 && k > 0.0
-            dev = 0
-            while n > zero(valtype(pop.data.poptable_current))
-                q2 = round(q + dev/k, digits=EPS)
-                if q2 >= ACCTHR
-                    developed += n
-                    n = 0
-                else
-                    h0 = dev == 0 ? 0.0 : pop.hazard.eval(dev - 1, theta)
-                    h1 = pop.hazard.eval(dev, theta)
-                    p = h0 == 1.0 ? 1.0 : (h1 - h0) / (1.0 - h0)
-                    n2 = pop.update(n, p)
-                    developed += n2
-                    n -= n2
-                    if haskey(pop.data.poptable_next, q2)
-                        pop.data.poptable_next[q2] += n2
-                    else 
-                        pop.data.poptable_next[q2] = n2
+        if theta == 0.0 || k == 0
+            q2 = member_key(age, q.dev)
+            pop.data.poptable_next[q2] = n
+            continue
+        end
+        #
+        dev = 0
+        while n > zero(valtype(pop.data.poptable_current))
+            q2 = member_key(age, q.dev + dev/k)
+            if q2.dev >= ACCTHR
+                add_key(pop.data.poptable_done, q2, n)
+                developed += n
+                n = zero(valtype(pop.data.poptable_current))
+            else
+                p = pop.hazard.func(age, dev, pop.hazard, k, theta)
+                n2 = pop.update(n, p)
+                n -= n2
+                #
+                if typeof(pop.hazard) <: age_haz
+                    if n2 > zero(valtype(pop.data.poptable_current))
+                        add_key(pop.data.poptable_done, q2, n2)
+                        developed += n2
                     end
-                    dev += 1
+                    add_key(pop.data.poptable_next, q2, n)
+                    break
+                else
+                    add_key(pop.data.poptable_next, q2, n2)
                 end
+                dev += 1
             end
-        else 
-            pop.data.poptable_next[q] = n
         end
     end
+    #
     empty!(pop.data.poptable_current)
     for (q,n) in pop.data.poptable_next
         pop.data.poptable_current[q] = n
         size += n
     end
-    return size, developed, dead, devtable
+    return size, developed, dead, pop.data.poptable_done
 end
 
 end
