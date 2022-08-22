@@ -203,8 +203,6 @@ end
 # --------------------------------------------------------------------------------
 
 abstract type PopDataTypes end
-abstract type StoData <: PopDataTypes end
-abstract type DetData <: PopDataTypes end
 
 # combined age- and acumulated-development Population members -------------------
 
@@ -233,7 +231,7 @@ function add_key(data::Dict{MemberKey, Int64}, key::MemberKey, n::Int64)
 end
 
 # deterministic
-struct PopDataDet <: DetData
+struct PopDataDet <: PopDataTypes
     poptable_current::Dict{MemberKey, Float64}
     poptable_next::Dict{MemberKey, Float64}
     poptable_done::Dict{MemberKey, Float64}
@@ -253,7 +251,7 @@ function get_poptable(poptable::Dict{MemberKey, Float64})
 end
 
 # stochastic
-struct PopDataSto <: StoData
+struct PopDataSto <: PopDataTypes
     poptable_current::Dict{MemberKey, Int64}
     poptable_next::Dict{MemberKey, Int64}
     poptable_done::Dict{MemberKey, Int64}
@@ -300,11 +298,11 @@ struct Population{T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     hazard::H
     update::F
     function Population(d::T, h::H) where {T <: PopDataTypes, H <: AgeHaz}
-        u::UpdateTypes = T <: DetData ? DeterministicUpdate() : StochasticUpdate()
+        u::UpdateTypes = T <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
         new{T,H,UpdateTypes}(d, h, u)
     end
     function Population(d::T, h::H) where {T <: PopDataTypes, H <: AccHaz}
-        u::UpdateTypes = T <: DetData ? DeterministicUpdate() : StochasticUpdate()
+        u::UpdateTypes = T <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
         new{T,H,UpdateTypes}(d, h, u)
     end
 end
