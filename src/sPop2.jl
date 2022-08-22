@@ -23,12 +23,24 @@ export newPop,
        mergePop,
        stepPop,
        getHtk,
-       readKeys
+       readKeys,
+       setEPS
 
 using Distributions
 using Printf
 
 EPS = 14
+function setEPS(eps::Int64)
+    global EPS
+    if eps == 0
+        EPS = 14
+    else
+        EPS = eps
+    end
+    #
+    return EPS
+end
+
 ACCTHR = 1.0
 
 GAMMA_MODES = Set(["ACC_ERLANG",
@@ -55,6 +67,8 @@ function addKey(devc::Dict,
                 n::Union{Int64,Float64})
     x = (q.age, q.dev)
     devc[x] = haskey(devc, x) ? devc[x] + n : n
+    #
+    return true
 end
 
 function readKey(x)
@@ -177,10 +191,10 @@ function newPop(stochastic::Bool=false,
     end
     #
     mty = Dict()
-    Pop(stochastic, 
-        gammafun,
-        mty,
-        stochastic ? 0 : 0.0)
+    return Pop(stochastic, 
+               gammafun,
+               mty,
+               stochastic ? 0 : 0.0)
 end
 
 function addPop(pop::Pop,
