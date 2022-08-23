@@ -1,6 +1,6 @@
 name = "sPop2"
 uuid = "11b83ad2-e65e-47ba-870b-1ff818f3e30a"
-authors = ["Kamil Erguler <k.erguler@cyi.ac.cy>"]
+authors = ["Kamil Erguler <k.erguler@cyi.ac.cy>", "Sean Wu <slwu89@berkeley.edu>"]
 version = "0.2.0"
 
 [deps]
