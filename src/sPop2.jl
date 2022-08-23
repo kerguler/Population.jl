@@ -1,5 +1,5 @@
 #=
-sPop2: a dynamically-structured matrix population model
+sPop2: a dynamically-structured matrix Population model
 Copyright (C) 2022 Kamil Erguler <k.erguler@cyi.ac.cy>
 
 This program is free software: you can redistribute it and/or modify
@@ -18,296 +18,393 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 module sPop2
 
-export newPop,
-       addPop,
-       mergePop,
-       stepPop,
-       getHtk,
-       readKeys,
-       setEPS
+export AccHaz, AgeHaz, HazTypes,
+       AccFixed, AccPascal, AccErlang,
+       AgeFixed, AgeNbinom, AgeGamma, 
+       PopDataDet, PopDataSto, Population, 
+       step_pop, add_pop, get_pop,
+       set_eps, empty_pop, get_poptable
 
 using Distributions
-using Printf
+using Random: rand
+
+const ACCTHR = 1.0
 
 EPS = 14
-function setEPS(eps::Int64)
+function set_eps(eps::Int64)
     global EPS
-    if eps == 0
-        EPS = 14
-    else
-        EPS = eps
-    end
-    #
+    EPS = eps == 0 ? 14 : eps
     return EPS
 end
 
-ACCTHR = 1.0
+# --------------------------------------------------------------------------------
+# hazard type
+# --------------------------------------------------------------------------------
 
-GAMMA_MODES = Set(["ACC_ERLANG",
-                   "ACC_PASCAL",
-                   "ACC_FIXED",
-                   "AGE_FIXED",
-                   "AGE_GAMMA",
-                   "AGE_NBINOM"])
+abstract type HazTypes end
+abstract type AccHaz <: HazTypes end
+abstract type AgeHaz <: HazTypes end
 
-mutable struct Qnit
+function acc_hazard_calc(age::Number, dev::Number, hazard::AccHaz, k::Number, theta::Number)
+    h0 = dev == 0 ? 0.0 : hazard.eval(dev - 1, theta)
+    h1 = hazard.eval(dev, theta)
+    h0 == 1.0 ? 1.0 : (h1 - h0) / (1.0 - h0)
+end
+
+function age_hazard_calc(age::Number, dev::Number, hazard::AgeHaz, k::Number, theta::Number)
+    h0 = hazard.eval(age - 1, k, theta)
+    h1 = hazard.eval(age, k, theta)
+    h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0)
+end
+
+# accumulation types ------------------------------------------------------------
+
+# fixed accumulation
+function acc_fixed_pars(devmn::Number, devsd::Number)
+    k = round(devmn)
+    theta = 1.0
+    return k, theta
+end
+
+function acc_fixed_haz(i::Number, theta::Number)
+    Float64(i >= theta)
+end
+
+struct AccFixed <: AccHaz
+    pars::Function
+    eval::Function
+    func::Function
+    function AccFixed()
+        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc)
+    end
+end
+
+# pascal
+function acc_pascal_pars(devmn::Number, devsd::Number)
+    theta = devmn / (devsd * devsd)
+    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Pascal cannot yield mean=$(devmn) and sd=$(devsd)"))
+    k = devmn * theta / (1.0 - theta)
+    if k != round(k)
+        k = round(k)
+        theta = k / (devmn + k)
+    end
+    return k, theta
+end
+
+function acc_pascal_haz(i::Number, theta::Number)
+    1.0 - theta^(i + 1.0)
+end
+
+struct AccPascal <: AccHaz
+    pars::Function
+    eval::Function
+    func::Function
+    function AccPascal()
+        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc)
+    end
+end
+
+# Erlang
+function acc_erlang_pars(devmn::Number, devsd::Number)
+    theta = devsd * devsd / devmn
+    k = devmn / theta
+    if k != round(k)
+        k = round(k)
+        theta = devmn / k
+        m = k*theta
+        s = (theta*m)^0.5
+        if verbose
+            @error string("Rounding up k to ", k, " to yield mean=", m, " and sd=", s)
+        end
+    end
+    return k, theta
+end
+
+function acc_erlang_haz(i::Number, theta::Number)
+    cdf(Poisson(1.0/theta), i)
+end
+
+struct AccErlang <: AccHaz
+    pars::Function
+    eval::Function
+    func::Function
+    function AccErlang()
+        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc)
+    end
+end
+
+
+# age types ------------------------------------------------------------
+
+# fixed age
+function age_fixed_pars(devmn::Number, devsd::Number)
+    k = round(devmn)
+    theta = 1.0
+    return k, theta
+end
+
+function age_fixed_haz(i::Number, k::Number, theta::Number)
+    Float64(i >= k)
+end
+
+struct AgeFixed <: AgeHaz
+    pars::Function
+    eval::Function
+    func::Function
+    function AgeFixed()
+        new(age_fixed_pars, age_fixed_haz, age_hazard_calc)
+    end
+end
+
+# negative binomial age
+function age_nbinom_pars(devmn::Number, devsd::Number)
+    theta = devmn / (devsd * devsd)
+    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(devmn) and sd=$(devsd)"))
+    k = devmn * theta / (1.0 - theta)
+    return k, theta
+end
+
+function age_nbinom_haz(i::Number, k::Number, theta::Number)
+    cdf(NegativeBinomial(k, theta), i - 1)
+end
+
+struct AgeNbinom <: AgeHaz
+    pars::Function
+    eval::Function
+    func::Function
+    function AgeNbinom()
+        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc)
+    end
+end
+
+# gamma age
+function age_gamma_pars(devmn::Number, devsd::Number)
+    theta = devsd * devsd / devmn
+    k = devmn / theta
+    return k, theta
+end
+
+function age_gamma_haz(i::Number, k::Number, theta::Number)
+    cdf(Gamma(k, theta), i)
+end
+
+struct AgeGamma <: AgeHaz
+    pars::Function
+    eval::Function
+    func::Function
+    function AgeGamma()
+        new(age_gamma_pars, age_gamma_haz, age_hazard_calc)
+    end
+end
+
+
+# --------------------------------------------------------------------------------
+# Population data types
+# --------------------------------------------------------------------------------
+
+abstract type PopDataTypes end
+
+# combined age- and acumulated-development Population members -------------------
+
+struct MemberKey
     age::Int64
     dev::Float64
+    function MemberKey(a::Int64, d::Float64)
+        new(a, round(d, digits=EPS))
+    end
 end
 
-mutable struct Pop
-    stochastic::Bool
-    gammafun::String
-    devc::Dict
-    size::Union{Int64,Float64}
+function add_key(data::Dict{MemberKey, Float64}, key::MemberKey, n::Float64)
+    if haskey(data, key)
+        data[key] += n
+    else
+        data[key] = n
+    end
 end
 
-function addKey(devc::Dict,
-                q::Qnit,
-                n::Union{Int64,Float64})
-    x = (q.age, q.dev)
-    devc[x] = haskey(devc, x) ? devc[x] + n : n
-    #
-    return true
+function add_key(data::Dict{MemberKey, Int64}, key::MemberKey, n::Int64)
+    if haskey(data, key)
+        data[key] += n
+    else
+        data[key] = n
+    end
 end
 
-function readKey(x)
-    return Qnit(x[1], x[2])
+# deterministic
+struct PopDataDet <: PopDataTypes
+    poptable_current::Dict{MemberKey, Float64}
+    poptable_next::Dict{MemberKey, Float64}
+    poptable_done::Dict{MemberKey, Float64}
+    function PopDataDet()
+        new(Dict{MemberKey, Float64}(),Dict{MemberKey, Float64}(),Dict{MemberKey, Float64}())
+    end
 end
 
-function readKeys(devc::Dict)
-    ra = Dict()
-    rd = Dict()
-    for (x,n) in devc
-        tmp = readKey(x)
-        ra[tmp.age] = haskey(ra,tmp.age) ? ra[tmp.age] + n : n
-        rd[tmp.dev] = haskey(rd,tmp.dev) ? rd[tmp.dev] + n : n
+function get_poptable(poptable::Dict{MemberKey, Float64})
+    ra = Dict{Int64, Float64}()
+    rd = Dict{Float64, Float64}()
+    for (x,n) in poptable
+        ra[x.age] = haskey(ra,x.age) ? ra[x.age] + n : n
+        rd[x.dev] = haskey(rd,x.dev) ? rd[x.dev] + n : n
     end
     return ra, rd
 end
 
-# Age-dependent
-function HFixed(i::Int64,k::Int64,theta::Float64);    convert(Float64, i >= k);              end
-function HNBinom(i::Int64,k::Float64,theta::Float64); cdf(NegativeBinomial(k,theta), i - 1); end
-function HGamma(i::Int64,k::Float64,theta::Float64);  cdf(Gamma(k,theta), i);                end
-# Accumulating
-function HFixedACC(i::Int64,theta::Float64); convert(Float64, i >= theta); end
-function HPascal(i::Int64,theta::Float64);   1.0 - theta^(i + 1.0);        end
-function HErlang(i::Int64,theta::Float64);   cdf(Poisson(1.0/theta), i);   end
-# Hash (under construction)
-hDistribution = Dict()
-function hHErlang(i::Int64,k::Float64,theta::Float64)
-    label = "ACC_ERLANG"
-    key = (k, theta, i)
-    if !haskey(label); hDistribution[label] = Dict(); end
-    if !haskey(hDistribution[label], key); hDistribution[label][key] = HErlang(i,k,theta); end
-    return hDistribution[label][key]
+# stochastic
+struct PopDataSto <: PopDataTypes
+    poptable_current::Dict{MemberKey, Int64}
+    poptable_next::Dict{MemberKey, Int64}
+    poptable_done::Dict{MemberKey, Int64}
+    function PopDataSto()
+        new(Dict{MemberKey, Int64}(),Dict{MemberKey, Int64}(),Dict{MemberKey, Int64}())
+    end
 end
 
-function getHtk(gammafun::String,
-                devmn::Float64,
-                devsd::Float64,
-                verbose::Bool = false)
-    if devmn == 0.0 && devsd == 0.0
-        return Dict("H"=>HFixed, "theta"=>0.0, "k"=>0, "acc"=>false)
+function get_poptable(poptable::Dict{MemberKey, Int64})
+    ra = Dict{Int64, Int64}()
+    rd = Dict{Float64, Int64}()
+    for (x,n) in poptable
+        add_key(ra, x.age, n)
+        add_key(rd, x.dev, n)
     end
-    #
-    makeint::Bool = true
-    theta::Float64 = 0.0
-    k::Float64 = 0.0
-    acc::Bool = false
-    if gammafun === "AGE_FIXED"
-        H = HFixed
-        k = round(devmn)
-        theta = 1.0
-    elseif gammafun === "AGE_GAMMA"
-        H = HGamma
-        theta = devsd * devsd / devmn
-        k = devmn / theta
-        makeint = false
-    elseif gammafun === "AGE_NBINOM"
-        H = HNBinom
-        theta = devmn / (devsd * devsd)
-        if theta >= 1.0 || theta == 0.0
-            @error string("Negative binomial cannot yield mean=", devmn, " and sd=", devsd)
-            return false
-        end
-        k = devmn * theta / (1.0 - theta)
-        makeint = false
-    elseif gammafun === "ACC_FIXED"
-        H = HFixedACC
-        k = round(devmn)
-        theta = 1.0
-        acc = true
-    elseif gammafun === "ACC_ERLANG"
-        H = HErlang
-        theta = devsd * devsd / devmn
-        k = devmn / theta
-        if k != round(k)
-            k = round(k)
-            theta = devmn / k
-            m = k*theta
-            s = (theta*m)^0.5
-            if verbose
-                @error string("Rounding up k to ", k, " to yield mean=", m, " and sd=", s)
-            end
-        end
-        acc = true
-    elseif gammafun === "ACC_PASCAL"
-        H = HPascal
-        theta = devmn / (devsd * devsd)
-        if theta >= 1.0 || theta == 0.0
-            @error string("Pascal cannot yield mean=", devmn, " and sd=", devsd)
-            return false
-        end
-        k = devmn * theta / (1.0 - theta)
-        if k != round(k)
-            k = round(k)
-            theta = k / (devmn + k)
-        end
-        acc = true
-    else
-        @error string("The distribution id=", gammafun, " is not supported\nSupported distributions are ", string(GAMMA_MODES))
-        return false
-    end
-    #
-    if makeint
-        kk::Int64 = convert(Int64, round(k))
-        if kk == 0
-            @error string("In accumulated development, the number of pseudo-states should be at least 1 (k=", k,")")
-            return false
-        end
-        #
-        return Dict("H"=>H, "theta"=>theta, "k"=>kk, "acc"=>acc)
-    end
-    return Dict("H"=>H, "theta"=>theta, "k"=>k, "acc"=>acc)
+    return ra, rd
 end
 
-function newPop(stochastic::Bool=false,
-                gammafun::String="ACC_ERLANG")
-    if !(gammafun in GAMMA_MODES)
-        @error string("The distribution id=", gammafun, " is not supported\nSupported distributions are ", string(GAMMA_MODES))
-        return false
-    end
-    #
-    mty = Dict()
-    return Pop(stochastic, 
-               gammafun,
-               mty,
-               stochastic ? 0 : 0.0)
+# --------------------------------------------------------------------------------
+# update type
+# --------------------------------------------------------------------------------
+
+abstract type UpdateTypes end
+struct StochasticUpdate <: UpdateTypes end
+struct DeterministicUpdate <: UpdateTypes end
+
+# stochastic
+function (::StochasticUpdate)(n, p)
+    rand(Binomial(n, p))
 end
 
-function addPop(pop::Pop,
-                age::Int64,
-                dev::Float64,
-                num::Union{Int64,Float64})
-    dev = round(dev, digits=EPS)
-    qnit = Qnit(age,dev)
-    addKey(pop.devc, qnit, num)
-    pop.size += num
+# deterministic
+function (::DeterministicUpdate)(n, p)
+    n*p
+end
+
+
+# --------------------------------------------------------------------------------
+# Population struct
+# --------------------------------------------------------------------------------
+
+struct Population{T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+    data::T
+    hazard::H
+    update::F
+    function Population(d::T, h::H) where {T <: PopDataTypes, H <: AgeHaz}
+        u::UpdateTypes = T <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
+        new{T,H,UpdateTypes}(d, h, u)
+    end
+    function Population(d::T, h::H) where {T <: PopDataTypes, H <: AccHaz}
+        u::UpdateTypes = T <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
+        new{T,H,UpdateTypes}(d, h, u)
+    end
+end
+
+function add_pop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+    key = MemberKey(max(age,0), max(0.0,dev))
+    pop.data.poptable_current[key] = n
+end
+
+function add_pop(popto::Population{T,Ht,Ft}, popfrom::Population{T,Hf,Ff}) where {T<:PopDataTypes,Ht<:HazTypes,Hf<:HazTypes,Ft<:UpdateTypes,Ff<:UpdateTypes}
+    for (q,n) in popfrom.data.poptable_current
+        if haskey(popto.data.poptable_current, q)
+            popto.data.poptable_current[q] += n
+        else 
+            popto.data.poptable_current[q] = n
+        end
+    end
+end
+
+function get_pop(pop::Population{T,H,F}) where {T<:PopDataTypes,H,F}
+    size = zero(valtype(pop.data.poptable_current))
+    for n in values(pop.data.poptable_current)
+        size += n
+    end
+    return size
+end
+
+# --------------------------------------------------------------------------------
+# renew a Population
+# --------------------------------------------------------------------------------
+
+function empty_pop(pop::Population{T,H,F}) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+    empty!(pop.data.poptable_current)
+    empty!(pop.data.poptable_next)
+    empty!(pop.data.poptable_done)
     #
     return true
 end
 
-function mergePop(pop::Pop,
-                  addpop::Pop)
-    if pop.stochastic != addpop.stochastic
-        @error "The two populations are not compatible"
-        return false
-    end
-    #
-    for (q,n) in addpop.devc
-        pop.devc[q] = haskey(pop.devc, q) ? pop.devc[q] + n : n
-        pop.size += n
-    end
-    #
-    return true
-end
+# --------------------------------------------------------------------------------
+# step function
+# --------------------------------------------------------------------------------
 
-function stepPop(pop::Pop,
-                 devmn::Float64,
-                 devsd::Float64,
-                 death::Float64)
-    # Obtain development time Hazard function and the associated parameters
-    tmp = getHtk(pop.gammafun, devmn, devsd)
-    if tmp == false; return false; end
-    H = tmp["H"]
-    theta = tmp["theta"]
-    k = tmp["k"]
-    acc = tmp["acc"]
-    # Keep track of developed and dead
-    developed::Union{Int64,Float64} = pop.stochastic ? 0 : 0.0
-    dead::Union{Int64,Float64} = pop.stochastic ? 0 : 0.0
-    #
-    h0::Float64 = 0.0
-    h1::Float64 = 0.0
-    p::Float64 = 0.0
-    n2::Union{Int64,Float64} = 0.0
-    #
-    npop = Dict()
-    devtable = newPop(pop.stochastic, pop.gammafun)
-    for (q,n) in pop.devc
-        q = readKey(q)
-        # Ageing
-        q.age += 1
-        # Mortality
+function step_pop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+    k, theta = pop.hazard.pars(devmn, devsd)
+    dead = zero(valtype(pop.data.poptable_current))
+    developed = zero(valtype(pop.data.poptable_current))
+    size = zero(valtype(pop.data.poptable_current))
+    empty!(pop.data.poptable_done)
+    empty!(pop.data.poptable_next)
+    for (q,n) in pop.data.poptable_current
+        if n == 0
+            continue
+        end
+        # age
+        age = q.age + one(q.age)
+        # mortality
         if death > 0.0
-            dd::Union{Int64,Float64} = pop.stochastic ? rand(Binomial(n,death)) : n*death
+            dd = pop.update(n, death)
             dead += dd
             n -= dd
         end
-        # Development
-        if theta > 0.0 && k > 0
-            dev::Int64 = 0
-            while n > 0.0
-                q2 = Qnit(q.age, round(q.dev + dev/k, digits=EPS))
-                if acc
-                    # Accumulated
-                    if q2.dev >= ACCTHR
-                        addPop(devtable, q2.age, q2.dev, n)
-                        developed += n
-                        n = pop.stochastic ? 0 : 0.0
-                    else
-                        h0 = dev == 0 ? 0.0 : H(dev - 1, theta)
-                        h1 = H(dev, theta)
-                        p = h0 == 1.0 ? 1.0 : (h1 - h0) / (1.0 - h0)
-                        #
-                        n2 = pop.stochastic ? rand(Binomial(n,p)) : n*p
-                        #
-                        addKey(npop, q2, n2)
-                        n -= n2
-                        #
-                        dev += 1
+        # development
+        if theta == 0.0 || k == 0
+            q2 = MemberKey(age, q.dev)
+            pop.data.poptable_next[q2] = n
+            continue
+        end
+        #
+        dev = 0
+        while n > zero(valtype(pop.data.poptable_current))
+            q2 = MemberKey(age, q.dev + dev/k)
+            if q2.dev >= ACCTHR
+                add_key(pop.data.poptable_done, q2, n)
+                developed += n
+                n = zero(valtype(pop.data.poptable_current))
+            else
+                p = pop.hazard.func(age, dev, pop.hazard, k, theta)
+                n2 = pop.update(n, p)
+                n -= n2
+                #
+                if typeof(pop.hazard) <: AgeHaz
+                    if n2 > zero(valtype(pop.data.poptable_current))
+                        add_key(pop.data.poptable_done, q2, n2)
+                        developed += n2
                     end
-                else
-                    # Age-dependent
-                    h0 = H(q2.age - 1, k, theta)
-                    h1 = H(q2.age, k, theta)
-                    p = h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0)
-                    #
-                    n2 = pop.stochastic ? rand(Binomial(n,p)) : n*p
-                    #
-                    developed += n2
-                    addPop(devtable, q2.age, q2.dev, n2)
-                    n -= n2
-                    addKey(npop, q2, n)
-                    #
+                    add_key(pop.data.poptable_next, q2, n)
                     break
+                else
+                    add_key(pop.data.poptable_next, q2, n2)
                 end
+                dev += 1
             end
-        else
-            npop[q] = n
         end
     end
     #
-    empty!(pop.devc)
-    pop.size = pop.stochastic ? 0 : 0.0
-    for (q,n) in npop
-        pop.devc[q] = n
-        pop.size += n
+    empty!(pop.data.poptable_current)
+    for (q,n) in pop.data.poptable_next
+        pop.data.poptable_current[q] = n
+        size += n
     end
-    #
-    return Dict("size"=>pop.size, "developed"=>developed, "dead"=>dead, "devtable"=>devtable)
+    return size, developed, dead, pop.data.poptable_done
 end
 
 end

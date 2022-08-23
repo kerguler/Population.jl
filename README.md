@@ -11,7 +11,7 @@ This is the standalone Julia library of the dynamically-structured matrix popula
 Just type this in Julia:
 ```julia
 using Pkg
-Pkg.add("Package Name")
+Pkg.add("sPop2")
 ```
 
 ## Using the library
@@ -19,9 +19,9 @@ Pkg.add("Package Name")
 The following creates a pseudo-structured population with 10 individuals and iterate it one step with 0 mortality and an Erlang-distributed development time of 20&pm;5 steps.
 
 ```julia
-pop = newPop(false, "ACC_ERLANG")
-addPop(pop, 0, 0.0, 10.0)
-stepPop(pop, 20.0, 5.0, 0.0)
+pop = Population(PopDataDet(), AccErlang())
+add_pop(pop, 100, 0, 0)
+sz, dev, dead, devtable = step_pop(pop, 20.0, 5.0, 0.0)
 ```
 
 Please see <a href="docs/">docs/</a> for usage examples.
