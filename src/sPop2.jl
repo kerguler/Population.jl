@@ -22,8 +22,8 @@ export AccHaz, AgeHaz, HazTypes,
        AccFixed, AccPascal, AccErlang,
        AgeFixed, AgeNbinom, AgeGamma, 
        PopDataDet, PopDataSto, Population, 
-       step_pop, add_pop, get_pop,
-       set_eps, empty_pop, get_poptable
+       StepPop, AddPop, GetPop,
+       set_eps, EmptyPop, GetPoptable
 
 using Distributions
 using Random: rand
@@ -70,6 +70,17 @@ function acc_fixed_haz(i::Number, theta::Number)
     Float64(i >= theta)
 end
 
+"""
+Fixed Duration Accumulative Development Process
+
+This accumulative development process has a cumulative density function which is a step function with discontunity at `devmn`.
+
+`AccFixed()` returns a struct with fields:
+    * `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+    * `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+    * `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+"""
 struct AccFixed <: AccHaz
     pars::Function
     eval::Function
@@ -95,6 +106,17 @@ function acc_pascal_haz(i::Number, theta::Number)
     1.0 - theta^(i + 1.0)
 end
 
+"""
+Pascal Accumulative Development Process
+
+This Pascal development process is a generalization of the negative binomial distribution to non-integer values.
+
+`AccPascal()` returns a struct with fields:
+    * `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+    * `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+    * `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+"""
 struct AccPascal <: AccHaz
     pars::Function
     eval::Function
@@ -214,15 +236,7 @@ struct MemberKey
     end
 end
 
-function add_key(data::Dict{MemberKey, Float64}, key::MemberKey, n::Float64)
-    if haskey(data, key)
-        data[key] += n
-    else
-        data[key] = n
-    end
-end
-
-function add_key(data::Dict{MemberKey, Int64}, key::MemberKey, n::Int64)
+function add_key(data::Dict{MemberKey, T}, key::MemberKey, n::T) where {T<:Number}
     if haskey(data, key)
         data[key] += n
     else
@@ -240,16 +254,6 @@ struct PopDataDet <: PopDataTypes
     end
 end
 
-function get_poptable(poptable::Dict{MemberKey, Float64})
-    ra = Dict{Int64, Float64}()
-    rd = Dict{Float64, Float64}()
-    for (x,n) in poptable
-        ra[x.age] = haskey(ra,x.age) ? ra[x.age] + n : n
-        rd[x.dev] = haskey(rd,x.dev) ? rd[x.dev] + n : n
-    end
-    return ra, rd
-end
-
 # stochastic
 struct PopDataSto <: PopDataTypes
     poptable_current::Dict{MemberKey, Int64}
@@ -260,9 +264,9 @@ struct PopDataSto <: PopDataTypes
     end
 end
 
-function get_poptable(poptable::Dict{MemberKey, Int64})
-    ra = Dict{Int64, Int64}()
-    rd = Dict{Float64, Int64}()
+function GetPoptable(poptable::Dict{MemberKey, T}) where {T<:Number}
+    ra = Dict{Int64, T}()
+    rd = Dict{Float64, T}()
     for (x,n) in poptable
         add_key(ra, x.age, n)
         add_key(rd, x.dev, n)
@@ -307,12 +311,12 @@ struct Population{T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     end
 end
 
-function add_pop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+function AddPop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     key = MemberKey(max(age,0), max(0.0,dev))
     pop.data.poptable_current[key] = n
 end
 
-function add_pop(popto::Population{T,Ht,Ft}, popfrom::Population{T,Hf,Ff}) where {T<:PopDataTypes,Ht<:HazTypes,Hf<:HazTypes,Ft<:UpdateTypes,Ff<:UpdateTypes}
+function AddPop(popto::Population{T,Ht,Ft}, popfrom::Population{T,Hf,Ff}) where {T<:PopDataTypes,Ht<:HazTypes,Hf<:HazTypes,Ft<:UpdateTypes,Ff<:UpdateTypes}
     for (q,n) in popfrom.data.poptable_current
         if haskey(popto.data.poptable_current, q)
             popto.data.poptable_current[q] += n
@@ -322,7 +326,7 @@ function add_pop(popto::Population{T,Ht,Ft}, popfrom::Population{T,Hf,Ff}) where
     end
 end
 
-function get_pop(pop::Population{T,H,F}) where {T<:PopDataTypes,H,F}
+function GetPop(pop::Population{T,H,F}) where {T<:PopDataTypes,H,F}
     size = zero(valtype(pop.data.poptable_current))
     for n in values(pop.data.poptable_current)
         size += n
@@ -334,7 +338,7 @@ end
 # renew a Population
 # --------------------------------------------------------------------------------
 
-function empty_pop(pop::Population{T,H,F}) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+function EmptyPop(pop::Population{T,H,F}) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     empty!(pop.data.poptable_current)
     empty!(pop.data.poptable_next)
     empty!(pop.data.poptable_done)
@@ -346,7 +350,7 @@ end
 # step function
 # --------------------------------------------------------------------------------
 
-function step_pop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+function StepPop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     k, theta = pop.hazard.pars(devmn, devsd)
     dead = zero(valtype(pop.data.poptable_current))
     developed = zero(valtype(pop.data.poptable_current))
