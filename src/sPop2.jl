@@ -76,9 +76,11 @@ Fixed Duration Accumulative Development Process
 This accumulative development process has a cumulative density function which is a step function with discontunity at `devmn`.
 
 `AccFixed()` returns a struct with fields:
-    * `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-    * `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-    * `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
 
 """
 struct AccFixed <: AccHaz
@@ -112,9 +114,11 @@ Pascal Accumulative Development Process
 This Pascal development process is a generalization of the negative binomial distribution to non-integer values.
 
 `AccPascal()` returns a struct with fields:
-    * `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-    * `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-    * `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+    
+The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
 
 """
 struct AccPascal <: AccHaz
@@ -146,6 +150,19 @@ function acc_erlang_haz(i::Number, theta::Number)
     cdf(Poisson(1.0/theta), i)
 end
 
+"""
+Erlang Accumulative Development Process
+
+The Erlang development process uses a Gamma distributed with integer shape parameter distribution.
+
+`AccPascal()` returns a struct with fields:
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+    
+The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
+
+"""
 struct AccErlang <: AccHaz
     pars::Function
     eval::Function
