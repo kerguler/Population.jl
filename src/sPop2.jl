@@ -45,12 +45,24 @@ abstract type HazTypes end
 abstract type AccHaz <: HazTypes end
 abstract type AgeHaz <: HazTypes end
 
+"""
+Hazard Calculation for Accumulative Development Process
+
+The hazard is computed as ``\frac{F(x,θ) - F(x-1,θ)}{1 - F(x-1,θ)} ``
+
+"""
 function acc_hazard_calc(age::Number, dev::Number, hazard::AccHaz, k::Number, theta::Number)
     h0 = dev == 0 ? 0.0 : hazard.eval(dev - 1, theta)
     h1 = hazard.eval(dev, theta)
     h0 == 1.0 ? 1.0 : (h1 - h0) / (1.0 - h0)
 end
 
+"""
+Hazard Calculation for Ageing Development Process
+
+The hazard is computed as ``\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
+
+"""
 function age_hazard_calc(age::Number, dev::Number, hazard::AgeHaz, k::Number, theta::Number)
     h0 = hazard.eval(age - 1, k, theta)
     h1 = hazard.eval(age, k, theta)
@@ -186,6 +198,19 @@ function age_fixed_haz(i::Number, k::Number, theta::Number)
     Float64(i >= k)
 end
 
+"""
+Fixed Duration Ageing Development Process
+
+This ageing development process has a cumulative density function which is a step function with discontunity at `devmn`.
+
+`AgeFixed()` returns a struct with fields:
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+The struct `AgeFixed` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
+
+"""
 struct AgeFixed <: AgeHaz
     pars::Function
     eval::Function
@@ -207,6 +232,19 @@ function age_nbinom_haz(i::Number, k::Number, theta::Number)
     cdf(NegativeBinomial(k, theta), i - 1)
 end
 
+"""
+Negative Binomial Ageing Development Process
+
+The ageing development process follows a negative binomial distribution.
+
+`AgeNbinom()` returns a struct with fields:
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+The struct `AgeNbinom` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
+
+"""
 struct AgeNbinom <: AgeHaz
     pars::Function
     eval::Function
@@ -227,6 +265,19 @@ function age_gamma_haz(i::Number, k::Number, theta::Number)
     cdf(Gamma(k, theta), i)
 end
 
+"""
+Gamma Ageing Development Process
+
+The ageing development process follows a gamma distribution.
+
+`AgeGamma()` returns a struct with fields:
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+The struct `AgeGamma` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
+
+"""
 struct AgeGamma <: AgeHaz
     pars::Function
     eval::Function
@@ -245,6 +296,12 @@ abstract type PopDataTypes end
 
 # combined age- and acumulated-development Population members -------------------
 
+"""
+Key for population development tables
+
+A struct containing `age` (integer) and development fraction `dev` (float).
+
+"""
 struct MemberKey
     age::Int64
     dev::Float64
@@ -253,15 +310,15 @@ struct MemberKey
     end
 end
 
-function add_key(data::Dict{MemberKey, T}, key::MemberKey, n::T) where {T<:Number}
-    if haskey(data, key)
-        data[key] += n
-    else
-        data[key] = n
-    end
-end
+"""
+Population data for deterministic models
 
-# deterministic
+Return a struct inheriting from `PopDataTypes` with 3 fields:
+- `poptable_current`: a `Dict` mapping `Float64` by `MemberKey` keys
+- `poptable_next`: a `Dict` mapping `Float64` by `MemberKey` keys
+- `poptable_done`: a `Dict` mapping `Float64` by `MemberKey` keys
+
+"""
 struct PopDataDet <: PopDataTypes
     poptable_current::Dict{MemberKey, Float64}
     poptable_next::Dict{MemberKey, Float64}
@@ -271,7 +328,15 @@ struct PopDataDet <: PopDataTypes
     end
 end
 
-# stochastic
+"""
+Population data for stochastic models
+
+Return a struct inheriting from `PopDataTypes` with 3 fields:
+- `poptable_current`: a `Dict` mapping `Int64` by `MemberKey` keys
+- `poptable_next`: a `Dict` mapping `Int64` by `MemberKey` keys
+- `poptable_done`: a `Dict` mapping `Int64` by `MemberKey` keys
+
+"""
 struct PopDataSto <: PopDataTypes
     poptable_current::Dict{MemberKey, Int64}
     poptable_next::Dict{MemberKey, Int64}
@@ -281,12 +346,32 @@ struct PopDataSto <: PopDataTypes
     end
 end
 
+"""
+Add key-value pair to development table
+
+Add the key `key` and value `n` to the development table `data`. If the key already exists, `n` is added to its value, otherwise a new entry is created.
+
+"""
+function add_key(data::Dict{MemberKey, T}, key::MemberKey, n::T) where {T<:Number}
+    if haskey(data, key)
+        data[key] += n
+    else
+        data[key] = n
+    end
+end
+
+"""
+Tabulate development table
+
+Return a tuple of two `Dict` objects, the first which indexes counts by development ages and the second by fraction of development completed.
+
+"""
 function GetPoptable(poptable::Dict{MemberKey, T}) where {T<:Number}
     ra = Dict{Int64, T}()
     rd = Dict{Float64, T}()
     for (x,n) in poptable
-        add_key(ra, x.age, n)
-        add_key(rd, x.dev, n)
+        ra[x.age] = haskey(ra,x.age) ? ra[x.age] + n : n
+        rd[x.dev] = haskey(rd,x.dev) ? rd[x.dev] + n : n
     end
     return ra, rd
 end
@@ -296,7 +381,21 @@ end
 # --------------------------------------------------------------------------------
 
 abstract type UpdateTypes end
+
+"""
+Stochastic update
+
+A callable struct inheriting from `UpdateTypes` which draws a binomial random variate.
+
+"""
 struct StochasticUpdate <: UpdateTypes end
+
+"""
+Deterministic update
+
+A callable struct inheriting from `UpdateTypes` which returns the proportion experiencing an event.
+
+"""
 struct DeterministicUpdate <: UpdateTypes end
 
 # stochastic
@@ -314,6 +413,14 @@ end
 # Population struct
 # --------------------------------------------------------------------------------
 
+"""
+A population
+
+A struct containing a single population. It can be constructed by passing two arguments to its constructor,
+`d` should be either `PopDataSto` or `PopDataDet` and `h` is the hazard type, and should inherit from `AgeHaz` or `AccHaz`,
+for ageing or accumulation based development processes, respectively.
+
+"""
 struct Population{T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     data::T
     hazard::H
@@ -328,6 +435,13 @@ struct Population{T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     end
 end
 
+"""
+Add individuals to a population
+
+Add individuals to an existing population. Individuals can be added by either passing the number, age, and development fraction attained, or
+by passing a second `Population` object which will be added to the first.
+
+"""
 function AddPop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     key = MemberKey(max(age,0), max(0.0,dev))
     pop.data.poptable_current[key] = n
@@ -343,6 +457,12 @@ function AddPop(popto::Population{T,Ht,Ft}, popfrom::Population{T,Hf,Ff}) where 
     end
 end
 
+"""
+Get size of a population
+
+Return the total number of individuals in this population.
+
+"""
 function GetPop(pop::Population{T,H,F}) where {T<:PopDataTypes,H,F}
     size = zero(valtype(pop.data.poptable_current))
     for n in values(pop.data.poptable_current)
@@ -355,6 +475,12 @@ end
 # renew a Population
 # --------------------------------------------------------------------------------
 
+"""
+Empty a population
+
+Remove all individuals from this population.
+
+"""
 function EmptyPop(pop::Population{T,H,F}) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     empty!(pop.data.poptable_current)
     empty!(pop.data.poptable_next)
@@ -367,6 +493,13 @@ end
 # step function
 # --------------------------------------------------------------------------------
 
+"""
+Iterate a population
+
+Update a population over a single time step, `devmn` is the current mean number of time steps until development completes, `devsd` is
+its standard deviation, and `death` is the per-capita mortality probability.
+
+"""
 function StepPop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
     k, theta = pop.hazard.pars(devmn, devsd)
     dead = zero(valtype(pop.data.poptable_current))
