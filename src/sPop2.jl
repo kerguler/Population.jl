@@ -48,7 +48,7 @@ abstract type AgeHaz <: HazTypes end
 """
 Hazard Calculation for Accumulative Development Process
 
-The hazard is computed as ``\frac{F(x,θ) - F(x-1,θ)}{1 - F(x-1,θ)} ``
+The hazard is computed as ``\\frac{F(x,θ) - F(x-1,θ)}{1 - F(x-1,θ)} ``
 
 """
 function acc_hazard_calc(age::Number, dev::Number, hazard::AccHaz, k::Number, theta::Number)
@@ -60,7 +60,7 @@ end
 """
 Hazard Calculation for Ageing Development Process
 
-The hazard is computed as ``\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
+The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
 function age_hazard_calc(age::Number, dev::Number, hazard::AgeHaz, k::Number, theta::Number)
