@@ -23,7 +23,8 @@ export AccHaz, AgeHaz, HazTypes,
        AgeFixed, AgeNbinom, AgeGamma, 
        PopDataDet, PopDataSto, Population, 
        StepPop, AddPop, GetPop, MemberKey,
-       set_eps, EmptyPop, GetPoptable
+       set_eps, EmptyPop, GetPoptable,
+       AddProcess
 
 using Distributions
 using Random: rand
@@ -69,11 +70,21 @@ function age_hazard_calc(age::Number, dev::Number, hazard::AgeHaz, k::Number, th
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0)
 end
 
+"""
+Hazard Calculation for Generic Development Process
+
+The hazard is the probability provided by the user
+
+"""
+function gen_hazard_calc(age::Number, dev::Number, hazard::AgeHaz, k::Number, theta::Number)
+    hazard.eval(age, k, theta)
+end
+
 # accumulation types ------------------------------------------------------------
 
 # fixed accumulation
-function acc_fixed_pars(devmn::Number, devsd::Number)
-    k = round(devmn)
+function acc_fixed_pars(pars::Dict)
+    k = round(pars["devmn"])
     theta = 1.0
     return k, theta
 end
@@ -105,13 +116,13 @@ struct AccFixed <: AccHaz
 end
 
 # pascal
-function acc_pascal_pars(devmn::Number, devsd::Number)
-    theta = devmn / (devsd * devsd)
-    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Pascal cannot yield mean=$(devmn) and sd=$(devsd)"))
-    k = devmn * theta / (1.0 - theta)
+function acc_pascal_pars(pars::Dict)
+    theta = pars["devmn"] / (pars["devsd"]^2)
+    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Pascal cannot yield mean=$(pars["devmn"]) and sd=$(pars["devsd"])"))
+    k = pars["devmn"] * theta / (1.0 - theta)
     if k != round(k)
         k = round(k)
-        theta = k / (devmn + k)
+        theta = k / (pars["devmn"] + k)
     end
     return k, theta
 end
@@ -143,12 +154,12 @@ struct AccPascal <: AccHaz
 end
 
 # Erlang
-function acc_erlang_pars(devmn::Number, devsd::Number)
-    theta = devsd * devsd / devmn
-    k = devmn / theta
+function acc_erlang_pars(pars::Dict)
+    theta = (pars["devsd"]^2) / pars["devmn"]
+    k = pars["devmn"] / theta
     if k != round(k)
         k = round(k)
-        theta = devmn / k
+        theta = pars["devmn"] / k
         m = k*theta
         s = (theta*m)^0.5
         if verbose
@@ -184,12 +195,44 @@ struct AccErlang <: AccHaz
     end
 end
 
-
 # age types ------------------------------------------------------------
 
+# constant age
+function age_const_pars(pars::Dict)
+    k = 1.0
+    theta = min(1.0, max(0.0, pars["prob"]))
+    return k, theta
+end
+
+function age_const_haz(i::Number, k::Number, theta::Number)
+    Float64(k)
+end
+
+"""
+Constant Probability Age-Dependent Development Process
+
+This age-dependent development process employs a constant probability of occurrence per step.
+
+`AgeConst()` returns a struct with fields:
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+The struct `AgeConst` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
+
+"""
+struct AgeConst <: AgeHaz
+    pars::Function
+    eval::Function
+    func::Function
+    function AgeConst()
+        new(age_const_pars, age_const_haz, gen_hazard_calc)
+    end
+end
+
 # fixed age
-function age_fixed_pars(devmn::Number, devsd::Number)
-    k = round(devmn)
+function age_fixed_pars(pars::Dict)
+    k = round(pars["devmn"])
     theta = 1.0
     return k, theta
 end
@@ -221,10 +264,10 @@ struct AgeFixed <: AgeHaz
 end
 
 # negative binomial age
-function age_nbinom_pars(devmn::Number, devsd::Number)
-    theta = devmn / (devsd * devsd)
-    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(devmn) and sd=$(devsd)"))
-    k = devmn * theta / (1.0 - theta)
+function age_nbinom_pars(pars::Dict)
+    theta = pars["devmn"] / (pars["devsd"]^2)
+    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(pars["devmn"]) and sd=$(pars["devsd"])"))
+    k = pars["devmn"] * theta / (1.0 - theta)
     return k, theta
 end
 
@@ -255,9 +298,9 @@ struct AgeNbinom <: AgeHaz
 end
 
 # gamma age
-function age_gamma_pars(devmn::Number, devsd::Number)
-    theta = devsd * devsd / devmn
-    k = devmn / theta
+function age_gamma_pars(pars::Dict)
+    theta = (pars["devsd"]^2) / pars["devmn"]
+    k = pars["devmn"] / theta
     return k, theta
 end
 
@@ -327,9 +370,11 @@ Return a struct inheriting from `PopDataTypes` with 3 fields:
 struct PopDataDet <: PopDataTypes
     poptable_current::Dict{MemberKey, Float64}
     poptable_next::Dict{MemberKey, Float64}
-    poptable_done::Dict{MemberKey, Float64}
+    poptable_done::Dict{String, Dict{MemberKey, Float64}}
     function PopDataDet()
-        new(Dict{MemberKey, Float64}(),Dict{MemberKey, Float64}(),Dict{MemberKey, Float64}())
+        new(Dict{MemberKey, Float64}(),
+            Dict{MemberKey, Float64}(),
+            Dict{String, Dict{MemberKey, Float64}}())
     end
 end
 
@@ -345,9 +390,11 @@ Return a struct inheriting from `PopDataTypes` with 3 fields:
 struct PopDataSto <: PopDataTypes
     poptable_current::Dict{MemberKey, Int64}
     poptable_next::Dict{MemberKey, Int64}
-    poptable_done::Dict{MemberKey, Int64}
+    poptable_done::Dict{String, Dict{MemberKey, Int64}}
     function PopDataSto()
-        new(Dict{MemberKey, Int64}(),Dict{MemberKey, Int64}(),Dict{MemberKey, Int64}())
+        new(Dict{MemberKey, Int64}(),
+            Dict{MemberKey, Int64}(),
+            Dict{String, Dict{MemberKey, Float64}}())
     end
 end
 
@@ -428,19 +475,28 @@ A struct containing a single population. It can be constructed by passing two ar
 for ageing or accumulation based development processes, respectively.
 
 """
-struct Population{T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+struct Population{T<:PopDataTypes,F<:UpdateTypes}
     data::T
-    hazard::H
     update::F
-    function Population(d::T, h::H) where {T <: PopDataTypes, H <: AgeHaz}
+    order::Array{String, 1}
+    hazards::Dict{String, HazTypes}
+    function Population(d::T) where {T <: PopDataTypes}
         u::UpdateTypes = T <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
-        new{T,H,UpdateTypes}(d, h, u)
-    end
-    function Population(d::T, h::H) where {T <: PopDataTypes, H <: AccHaz}
-        u::UpdateTypes = T <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
-        new{T,H,UpdateTypes}(d, h, u)
+        o = Array{String, 1}()
+        h = Dict{String, HazTypes}()
+        new{T,UpdateTypes,Dict{String, HazTypes}}(d, u, o, h)
     end
 end
+
+"""
+Add processes in the order to be executed
+
+"""
+struct AddProcess(pop::Population{T,F}, name::String, h::H) where {T<:PopDataTypes,F<:UpdateTypes}
+    pop.hazards[name] = H
+    push!(pop.order, name)
+end
+
 
 """
 Add individuals to a population
@@ -450,22 +506,22 @@ by passing a second `Population` object which will be added to the first. The fu
 i.e. the number of times an individual completed the development process.
 
 """
-function AddPop(pop::Population{T,H,F}, n::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+function AddPop(pop::Population{T,F}, n::Number) where {T<:PopDataTypes,F<:UpdateTypes}
     key = MemberKey(0, 0.0, 0)
     pop.data.poptable_current[key] = n
 end
 
-function AddPop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+function AddPop(pop::Population{T,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,F<:UpdateTypes}
     key = MemberKey(max(age,0), max(0.0,dev), 0)
     pop.data.poptable_current[key] = n
 end
 
-function AddPop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number, devc::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+function AddPop(pop::Population{T,F}, n::Number, age::Number, dev::Number, devc::Number) where {T<:PopDataTypes,F<:UpdateTypes}
     key = MemberKey(max(age,0), max(0.0,dev), max(devc, 0))
     pop.data.poptable_current[key] = n
 end
 
-function AddPop(popto::Population{T,Ht,Ft}, popfrom::Population{T,Hf,Ff}) where {T<:PopDataTypes,Ht<:HazTypes,Hf<:HazTypes,Ft<:UpdateTypes,Ff<:UpdateTypes}
+function AddPop(popto::Population{T,Ft}, popfrom::Population{T,Ff}) where {T<:PopDataTypes,Ft<:UpdateTypes,Ff<:UpdateTypes}
     for (q,n) in popfrom.data.poptable_current
         if haskey(popto.data.poptable_current, q)
             popto.data.poptable_current[q] += n
@@ -481,7 +537,7 @@ Get size of a population
 Return the total number of individuals in this population.
 
 """
-function GetPop(pop::Population{T,H,F}) where {T<:PopDataTypes,H,F}
+function GetPop(pop::Population{T,F}) where {T<:PopDataTypes,F<:UpdateTypes}
     size = zero(valtype(pop.data.poptable_current))
     for n in values(pop.data.poptable_current)
         size += n
@@ -499,7 +555,7 @@ Empty a population
 Remove all individuals from this population.
 
 """
-function EmptyPop(pop::Population{T,H,F}) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+function EmptyPop(pop::Population{T,F}) where {T<:PopDataTypes,F<:UpdateTypes}
     empty!(pop.data.poptable_current)
     empty!(pop.data.poptable_next)
     empty!(pop.data.poptable_done)
@@ -518,31 +574,49 @@ Update a population over a single time step, `devmn` is the current mean number 
 its standard deviation, and `death` is the per-capita mortality probability.
 
 """
-function StepPop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
-    k, theta = pop.hazard.pars(devmn, devsd)
+function StepPop(pop::Population{T,F}, pars::Dict{String, Dict}) where {T<:PopDataTypes,F<:UpdateTypes}
     dead = zero(valtype(pop.data.poptable_current))
     developed = zero(valtype(pop.data.poptable_current))
+    #
+    hazpar = Dict{String, Tuple{Number, Number}}()
+    for name in pop.order
+        hazpar[name] = pop.hazards[name].pars(pars[name]) # k, theta
+        empty!(pop.data.poptable_done[name])
+    end
+    #
     size = zero(valtype(pop.data.poptable_current))
-    empty!(pop.data.poptable_done)
+    #
     empty!(pop.data.poptable_next)
+    #
     for (q,n) in pop.data.poptable_current
         if n == 0
             continue
         end
         # ageing
         age = q.age + one(q.age)
+        # processes
+        for name in pop.order
+            k, theta = hazpar[name]
+            # skip proccess
+            if theta == 0.0 || k == 0
+                q2 = MemberKey(age, q.dev, q.devc)
+                add_key(pop.data.poptable_next, q2, n)
+                continue
+            end
+            # time-independent process
+            #
+            # time-dependent process
+            dev = 0
+            while n > zero(valtype(pop.data.poptable_current))
+                qdev = step_dev(q, dev, k)
+            end    
+        end
+        #
         # mortality
         if death > 0.0
             dd = pop.update(n, death)
             dead += dd
             n -= dd
-        end
-        # development
-        if theta == 0.0 || k == 0
-            # skip development
-            q2 = MemberKey(age, q.dev, q.devc)
-            add_key(pop.data.poptable_next, q2, n)
-            continue
         end
         #
         dev = 0
