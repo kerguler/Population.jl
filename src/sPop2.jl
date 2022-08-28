@@ -22,7 +22,7 @@ export AccHaz, AgeHaz, HazTypes,
        AccFixed, AccPascal, AccErlang,
        AgeFixed, AgeNbinom, AgeGamma, 
        PopDataDet, PopDataSto, Population, 
-       StepPop, AddPop, GetPop,
+       StepPop, AddPop, GetPop, MemberKey,
        set_eps, EmptyPop, GetPoptable
 
 using Distributions
@@ -58,7 +58,7 @@ function acc_hazard_calc(age::Number, dev::Number, hazard::AccHaz, k::Number, th
 end
 
 """
-Hazard Calculation for Ageing Development Process
+Hazard Calculation for Age-Dependent Development Process
 
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
@@ -85,7 +85,7 @@ end
 """
 Fixed Duration Accumulative Development Process
 
-This accumulative development process has a cumulative density function which is a step function with discontunity at `devmn`.
+This accumulative development process employs a step function, with discontunity at `devmn`, as the cumulative density function.
 
 `AccFixed()` returns a struct with fields:
 - `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
@@ -123,7 +123,7 @@ end
 """
 Pascal Accumulative Development Process
 
-This Pascal development process is a generalization of the negative binomial distribution to non-integer values.
+This Pascal (or negative binomial) development process employs the negative binomial distribution to represent process duration.
 
 `AccPascal()` returns a struct with fields:
 - `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
@@ -165,7 +165,7 @@ end
 """
 Erlang Accumulative Development Process
 
-The Erlang development process uses a Gamma distributed with integer shape parameter distribution.
+The Erlang development process uses the Gamma distribution with an integer shape parameter to represent process duration.
 
 `AccPascal()` returns a struct with fields:
 - `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
@@ -199,9 +199,9 @@ function age_fixed_haz(i::Number, k::Number, theta::Number)
 end
 
 """
-Fixed Duration Ageing Development Process
+Fixed Duration Age-Dependent Development Process
 
-This ageing development process has a cumulative density function which is a step function with discontunity at `devmn`.
+This age-dependent development process employs a step function, with discontunity at `devmn`, as the cumulative density function.
 
 `AgeFixed()` returns a struct with fields:
 - `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
@@ -233,9 +233,9 @@ function age_nbinom_haz(i::Number, k::Number, theta::Number)
 end
 
 """
-Negative Binomial Ageing Development Process
+Negative Binomial Age-Dependent Development Process
 
-The ageing development process follows a negative binomial distribution.
+The duration of this age-dependent development process follows a negative binomial distribution.
 
 `AgeNbinom()` returns a struct with fields:
 - `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
@@ -266,9 +266,9 @@ function age_gamma_haz(i::Number, k::Number, theta::Number)
 end
 
 """
-Gamma Ageing Development Process
+Gamma Age-Dependent Development Process
 
-The ageing development process follows a gamma distribution.
+This age-dependent development process follows a gamma distribution.
 
 `AgeGamma()` returns a struct with fields:
 - `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
@@ -305,9 +305,14 @@ A struct containing `age` (integer) and development fraction `dev` (float).
 struct MemberKey
     age::Int64
     dev::Float64
-    function MemberKey(a::Int64, d::Float64)
-        new(a, round(d, digits=EPS))
+    devc::Int64
+    function MemberKey(a::Int64, d::Float64, dc::Int64)
+        new(a, round(d, digits=EPS), dc)
     end
+end
+
+function step_dev(q::MemberKey, d::Int64, k::Number)
+    return round(q.dev + Float64(d)/Float64(k), digits=EPS)
 end
 
 """
@@ -369,11 +374,13 @@ Return a tuple of two `Dict` objects, the first which indexes counts by developm
 function GetPoptable(poptable::Dict{MemberKey, T}) where {T<:Number}
     ra = Dict{Int64, T}()
     rd = Dict{Float64, T}()
+    rdc = Dict{Int64, T}()
     for (x,n) in poptable
         ra[x.age] = haskey(ra,x.age) ? ra[x.age] + n : n
         rd[x.dev] = haskey(rd,x.dev) ? rd[x.dev] + n : n
+        rdc[x.devc] = haskey(rd,x.devc) ? rd[x.devc] + n : n
     end
-    return ra, rd
+    return ra, rd, rdc
 end
 
 # --------------------------------------------------------------------------------
@@ -439,11 +446,22 @@ end
 Add individuals to a population
 
 Add individuals to an existing population. Individuals can be added by either passing the number, age, and development fraction attained, or
-by passing a second `Population` object which will be added to the first.
+by passing a second `Population` object which will be added to the first. The function also allows a custom development cycle,
+i.e. the number of times an individual completed the development process.
 
 """
+function AddPop(pop::Population{T,H,F}, n::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+    key = MemberKey(0, 0.0, 0)
+    pop.data.poptable_current[key] = n
+end
+
 function AddPop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
-    key = MemberKey(max(age,0), max(0.0,dev))
+    key = MemberKey(max(age,0), max(0.0,dev), 0)
+    pop.data.poptable_current[key] = n
+end
+
+function AddPop(pop::Population{T,H,F}, n::Number, age::Number, dev::Number, devc::Number) where {T<:PopDataTypes,H<:HazTypes,F<:UpdateTypes}
+    key = MemberKey(max(age,0), max(0.0,dev), max(devc, 0))
     pop.data.poptable_current[key] = n
 end
 
@@ -511,7 +529,7 @@ function StepPop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Nu
         if n == 0
             continue
         end
-        # age
+        # ageing
         age = q.age + one(q.age)
         # mortality
         if death > 0.0
@@ -521,15 +539,17 @@ function StepPop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Nu
         end
         # development
         if theta == 0.0 || k == 0
-            q2 = MemberKey(age, q.dev)
-            pop.data.poptable_next[q2] = n
+            # skip development
+            q2 = MemberKey(age, q.dev, q.devc)
+            add_key(pop.data.poptable_next, q2, n)
             continue
         end
         #
         dev = 0
         while n > zero(valtype(pop.data.poptable_current))
-            q2 = MemberKey(age, q.dev + dev/k)
-            if q2.dev >= ACCTHR
+            qdev = step_dev(q, dev, k)
+            if qdev >= ACCTHR
+                q2 = MemberKey(age, qdev, q.devc+1)
                 add_key(pop.data.poptable_done, q2, n)
                 developed += n
                 n = zero(valtype(pop.data.poptable_current))
@@ -540,12 +560,15 @@ function StepPop(pop::Population{T,H,F}, devmn::Number, devsd::Number, death::Nu
                 #
                 if typeof(pop.hazard) <: AgeHaz
                     if n2 > zero(valtype(pop.data.poptable_current))
+                        q2 = MemberKey(age, qdev, q.devc+1)
                         add_key(pop.data.poptable_done, q2, n2)
                         developed += n2
                     end
+                    q2 = MemberKey(age, qdev, q.devc)
                     add_key(pop.data.poptable_next, q2, n)
                     break
                 else
+                    q2 = MemberKey(age, qdev, q.devc)
                     add_key(pop.data.poptable_next, q2, n2)
                 end
                 dev += 1

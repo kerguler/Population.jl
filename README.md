@@ -4,7 +4,7 @@
 <img width="623" height=211" src="docs/figures/logo_sPop2.jpg"/>
 </p>
 
-This is the standalone Julia library of the dynamically-structured matrix population model sPop2. This version implements both age-dependent and accumulated processes.
+This is the standalone Julia library of the dynamically-structured matrix population model sPop2. This version implements both age-dependent and accumulative processes.
 
 ## Installation
 
