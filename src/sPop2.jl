@@ -86,7 +86,7 @@ end
 function acc_fixed_pars(pars::Dict)
     k = round(pars["devmn"])
     theta = 1.0
-    return k, theta
+    return k, theta, true
 end
 
 function acc_fixed_haz(i::Number, theta::Number)
@@ -124,7 +124,7 @@ function acc_pascal_pars(pars::Dict)
         k = round(k)
         theta = k / (pars["devmn"] + k)
     end
-    return k, theta
+    return k, theta, true
 end
 
 function acc_pascal_haz(i::Number, theta::Number)
@@ -166,7 +166,7 @@ function acc_erlang_pars(pars::Dict)
             @error string("Rounding up k to ", k, " to yield mean=", m, " and sd=", s)
         end
     end
-    return k, theta
+    return k, theta, true
 end
 
 function acc_erlang_haz(i::Number, theta::Number)
@@ -201,7 +201,7 @@ end
 function age_const_pars(pars::Dict)
     k = 1.0
     theta = min(1.0, max(0.0, pars["prob"]))
-    return k, theta
+    return k, theta, false
 end
 
 function age_const_haz(i::Number, k::Number, theta::Number)
@@ -234,7 +234,7 @@ end
 function age_fixed_pars(pars::Dict)
     k = round(pars["devmn"])
     theta = 1.0
-    return k, theta
+    return k, theta, true
 end
 
 function age_fixed_haz(i::Number, k::Number, theta::Number)
@@ -268,7 +268,7 @@ function age_nbinom_pars(pars::Dict)
     theta = pars["devmn"] / (pars["devsd"]^2)
     (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(pars["devmn"]) and sd=$(pars["devsd"])"))
     k = pars["devmn"] * theta / (1.0 - theta)
-    return k, theta
+    return k, theta, true
 end
 
 function age_nbinom_haz(i::Number, k::Number, theta::Number)
@@ -301,7 +301,7 @@ end
 function age_gamma_pars(pars::Dict)
     theta = (pars["devsd"]^2) / pars["devmn"]
     k = pars["devmn"] / theta
-    return k, theta
+    return k, theta, true
 end
 
 function age_gamma_haz(i::Number, k::Number, theta::Number)
@@ -345,17 +345,73 @@ Key for population development tables
 A struct containing `age` (integer) and development fraction `dev` (float).
 
 """
-struct MemberKey
-    age::Int64
-    dev::Float64
-    devc::Int64
-    function MemberKey(a::Int64, d::Float64, dc::Int64)
-        new(a, round(d, digits=EPS), dc)
+abstract type CounTypes end
+abstract type AccCount <: CounTypes end
+abstract type AgeCount <: CounTypes end
+abstract type CusCount <: CounTypes end
+
+function acc_stepper(q::AccCount, d::Int64, k::Number)
+    return d == 0 ? q.value : round(q.value + Float64(d)/Float64(k), digits=EPS)
+end
+
+function age_stepper(q::AgeCount, d::Int64, k::Number)
+    return q.value + one(q.value)
+end
+
+function age_stepper(q::AgeCount)
+    return q.value + one(q.value)
+end
+
+struct AccCounter <: AccCount
+    value::Float64
+    stepper::Function
+    function AccCounter(v::Float64)
+        new(v, acc_stepper)
     end
 end
 
-function step_dev(q::MemberKey, d::Int64, k::Number)
-    return round(q.dev + Float64(d)/Float64(k), digits=EPS)
+struct AgeCounter <: AgeCount
+    value::Int64
+    stepper::Function
+    function AgeCounter(v::Int64)
+        new(v, age_stepper)
+    end
+end
+
+struct CustomCounter <: CusCount
+    value::Number
+    stepper::Function
+    function CustomCounter(v::Number, stepper::Function)
+        new(v, stepper)
+    end
+end
+
+struct MemberKey
+    counters::Dict{String,CounTypes}
+    function MemberKey(c::Dict{String,CounTypes})
+        new(c)
+    end
+    function MemberKey(h::Dict{String,HazTypes})
+        c = Dict{String,CounTypes}()
+        for (q,ht) in h
+            c[q] = typeof(ht) <: AgeHaz ? AgeCounter(0) : AccCounter(0.0)
+        end
+        new(c)
+    end
+    function MemberKey(h::Dict{String,HazTypes}, v::Dict{String,N}) where {N <: Number}
+        c = Dict{String,CounTypes}()
+        for (q,ht) in h
+            c[q] = typeof(ht) <: AgeHaz ? AgeCounter(v[q]) : AccCounter(v[q])
+        end
+        new(c)
+    end
+    function MemberKey(m::MemberKey, v::Dict{String,N}) where {N <: Number}
+        c = Dict{String,CounTypes}()
+        for (q,ct) in m.counters
+            c[q] = haskey(v,q) ? typeof(ct)(v[q]) : ct
+        end
+        new(c)
+    end
 end
 
 """
@@ -370,11 +426,11 @@ Return a struct inheriting from `PopDataTypes` with 3 fields:
 struct PopDataDet <: PopDataTypes
     poptable_current::Dict{MemberKey, Float64}
     poptable_next::Dict{MemberKey, Float64}
-    poptable_done::Dict{String, Dict{MemberKey, Float64}}
+    poptable_done::Dict{MemberKey, Float64}
     function PopDataDet()
         new(Dict{MemberKey, Float64}(),
             Dict{MemberKey, Float64}(),
-            Dict{String, Dict{MemberKey, Float64}}())
+            Dict{MemberKey, Float64}())
     end
 end
 
@@ -390,11 +446,11 @@ Return a struct inheriting from `PopDataTypes` with 3 fields:
 struct PopDataSto <: PopDataTypes
     poptable_current::Dict{MemberKey, Int64}
     poptable_next::Dict{MemberKey, Int64}
-    poptable_done::Dict{String, Dict{MemberKey, Int64}}
+    poptable_done::Dict{MemberKey, Int64}
     function PopDataSto()
         new(Dict{MemberKey, Int64}(),
             Dict{MemberKey, Int64}(),
-            Dict{String, Dict{MemberKey, Float64}}())
+            Dict{MemberKey, Int64}())
     end
 end
 
@@ -475,16 +531,16 @@ A struct containing a single population. It can be constructed by passing two ar
 for ageing or accumulation based development processes, respectively.
 
 """
-struct Population{T<:PopDataTypes,F<:UpdateTypes}
-    data::T
-    update::F
+struct Population
+    data::PopDataTypes
+    update::UpdateTypes
     order::Array{String, 1}
     hazards::Dict{String, HazTypes}
-    function Population(d::T) where {T <: PopDataTypes}
-        u::UpdateTypes = T <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
+    function Population(d::PopDataTypes)
+        u::UpdateTypes = typeof(d) <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
         o = Array{String, 1}()
         h = Dict{String, HazTypes}()
-        new{T,UpdateTypes,Dict{String, HazTypes}}(d, u, o, h)
+        new(d, u, o, h)
     end
 end
 
@@ -492,8 +548,8 @@ end
 Add processes in the order to be executed
 
 """
-struct AddProcess(pop::Population{T,F}, name::String, h::H) where {T<:PopDataTypes,F<:UpdateTypes}
-    pop.hazards[name] = H
+function AddProcess(pop::Population, name::String, h::HazTypes)
+    pop.hazards[name] = h
     push!(pop.order, name)
 end
 
@@ -506,22 +562,22 @@ by passing a second `Population` object which will be added to the first. The fu
 i.e. the number of times an individual completed the development process.
 
 """
-function AddPop(pop::Population{T,F}, n::Number) where {T<:PopDataTypes,F<:UpdateTypes}
-    key = MemberKey(0, 0.0, 0)
+function AddPop(pop::Population, n::Number)
+    key = MemberKey(pop.hazards)
     pop.data.poptable_current[key] = n
 end
 
-function AddPop(pop::Population{T,F}, n::Number, age::Number, dev::Number) where {T<:PopDataTypes,F<:UpdateTypes}
+function AddPop(pop::Population, n::Number, age::Number, dev::Number)
     key = MemberKey(max(age,0), max(0.0,dev), 0)
     pop.data.poptable_current[key] = n
 end
 
-function AddPop(pop::Population{T,F}, n::Number, age::Number, dev::Number, devc::Number) where {T<:PopDataTypes,F<:UpdateTypes}
+function AddPop(pop::Population, n::Number, age::Number, dev::Number, devc::Number)
     key = MemberKey(max(age,0), max(0.0,dev), max(devc, 0))
     pop.data.poptable_current[key] = n
 end
 
-function AddPop(popto::Population{T,Ft}, popfrom::Population{T,Ff}) where {T<:PopDataTypes,Ft<:UpdateTypes,Ff<:UpdateTypes}
+function AddPop(popto::Population, popfrom::Population)
     for (q,n) in popfrom.data.poptable_current
         if haskey(popto.data.poptable_current, q)
             popto.data.poptable_current[q] += n
@@ -537,7 +593,7 @@ Get size of a population
 Return the total number of individuals in this population.
 
 """
-function GetPop(pop::Population{T,F}) where {T<:PopDataTypes,F<:UpdateTypes}
+function GetPop(pop::Population)
     size = zero(valtype(pop.data.poptable_current))
     for n in values(pop.data.poptable_current)
         size += n
@@ -555,7 +611,7 @@ Empty a population
 Remove all individuals from this population.
 
 """
-function EmptyPop(pop::Population{T,F}) where {T<:PopDataTypes,F<:UpdateTypes}
+function EmptyPop(pop::Population)
     empty!(pop.data.poptable_current)
     empty!(pop.data.poptable_next)
     empty!(pop.data.poptable_done)
@@ -574,13 +630,16 @@ Update a population over a single time step, `devmn` is the current mean number 
 its standard deviation, and `death` is the per-capita mortality probability.
 
 """
-function StepPop(pop::Population{T,F}, pars::Dict{String, Dict}) where {T<:PopDataTypes,F<:UpdateTypes}
+function StepPop(pop::Population, pars::Dict{String, Dict})
     dead = zero(valtype(pop.data.poptable_current))
     developed = zero(valtype(pop.data.poptable_current))
     #
-    hazpar = Dict{String, Tuple{Number, Number}}()
+    hazpar = Dict{String, Tuple{Number, Number, Bool}}()
     for name in pop.order
-        hazpar[name] = pop.hazards[name].pars(pars[name]) # k, theta
+        k, theta, stay = pop.hazards[name].pars(pars[name])
+        if theta > 0.0 && k > 0
+            hazpar[name] = (k, theta, stay)
+        end
         empty!(pop.data.poptable_done[name])
     end
     #
@@ -588,65 +647,52 @@ function StepPop(pop::Population{T,F}, pars::Dict{String, Dict}) where {T<:PopDa
     #
     empty!(pop.data.poptable_next)
     #
-    for (q,n) in pop.data.poptable_current
-        if n == 0
-            continue
-        end
-        # ageing
-        age = q.age + one(q.age)
-        # processes
-        for name in pop.order
-            k, theta = hazpar[name]
-            # skip proccess
-            if theta == 0.0 || k == 0
-                q2 = MemberKey(age, q.dev, q.devc)
-                add_key(pop.data.poptable_next, q2, n)
+    poptable = pop.data.poptable_current
+    poptablenext = Dict{keytype(poptable),valtype(poptable)}()
+    # apply processes
+    for name in pop.order
+        for (q,n) in poptable
+            if n == 0
                 continue
             end
-            # time-independent process
             #
-            # time-dependent process
             dev = 0
             while n > zero(valtype(pop.data.poptable_current))
-                qdev = step_dev(q, dev, k)
-            end    
-        end
-        #
-        # mortality
-        if death > 0.0
-            dd = pop.update(n, death)
-            dead += dd
-            n -= dd
-        end
-        #
-        dev = 0
-        while n > zero(valtype(pop.data.poptable_current))
-            qdev = step_dev(q, dev, k)
-            if qdev >= ACCTHR
-                q2 = MemberKey(age, qdev, q.devc+1)
-                add_key(pop.data.poptable_done, q2, n)
-                developed += n
-                n = zero(valtype(pop.data.poptable_current))
-            else
-                p = pop.hazard.func(age, dev, pop.hazard, k, theta)
-                n2 = pop.update(n, p)
-                n -= n2
+                k, theta, stay = hazpar[name]
                 #
-                if typeof(pop.hazard) <: AgeHaz
-                    if n2 > zero(valtype(pop.data.poptable_current))
-                        q2 = MemberKey(age, qdev, q.devc+1)
-                        add_key(pop.data.poptable_done, q2, n2)
-                        developed += n2
-                    end
-                    q2 = MemberKey(age, qdev, q.devc)
-                    add_key(pop.data.poptable_next, q2, n)
-                    break
+                counter::CounType = q.counters[name]
+                qdev = counter.stepper(counter, dev, k)
+                #
+                if qdev >= ACCTHR
+                    q2 = MemberKey(age, qdev, q.devc+1)
+                    add_key(pop.data.poptable_done, q2, n)
+                    developed += n
+                    n = zero(valtype(pop.data.poptable_current))
                 else
-                    q2 = MemberKey(age, qdev, q.devc)
-                    add_key(pop.data.poptable_next, q2, n2)
+                    p = pop.hazard.func(age, dev, pop.hazard, k, theta)
+                    n2 = pop.update(n, p)
+                    n -= n2
+                    #
+                    if typeof(pop.hazard) <: AgeHaz
+                        if n2 > zero(valtype(pop.data.poptable_current))
+                            q2 = MemberKey(age, qdev, q.devc+1)
+                            add_key(pop.data.poptable_done, q2, n2)
+                            developed += n2
+                        end
+                        q2 = MemberKey(age, qdev, q.devc)
+                        add_key(pop.data.poptable_next, q2, n)
+                        break
+                    else
+                        q2 = MemberKey(age, qdev, q.devc)
+                        add_key(pop.data.poptable_next, q2, n2)
+                    end
+                    dev += 1
                 end
-                dev += 1
-            end
+                #
+                if !stay
+                    break
+                end
+            end    
         end
     end
     #
