@@ -24,7 +24,8 @@ export AccHaz, AgeHaz, HazTypes,
        PopDataDet, PopDataSto, Population, 
        StepPop, AddPop, GetPop, MemberKey,
        set_eps, EmptyPop, GetPoptable,
-       AddProcess
+       AddProcess, AccStepper, AgeStepper,
+       StepperTypes, get_stepper
 
 using Distributions
 using Random: rand
@@ -345,72 +346,87 @@ Key for population development tables
 A struct containing `age` (integer) and development fraction `dev` (float).
 
 """
-abstract type CounTypes end
-abstract type AccCount <: CounTypes end
-abstract type AgeCount <: CounTypes end
-abstract type CusCount <: CounTypes end
+abstract type StepperTypes end
+abstract type AccStep <: StepperTypes end
+abstract type AgeStep <: StepperTypes end
+abstract type CusStep <: StepperTypes end
 
-function acc_stepper(q::AccCount, d::Int64, k::Number)
-    return d == 0 ? q.value : round(q.value + Float64(d)/Float64(k), digits=EPS)
-end
-
-function age_stepper(q::AgeCount, d::Int64, k::Number)
-    return q.value + one(q.value)
-end
-
-function age_stepper(q::AgeCount)
-    return q.value + one(q.value)
-end
-
-struct AccCounter <: AccCount
-    value::Float64
-    stepper::Function
-    function AccCounter(v::Float64)
-        new(v, acc_stepper)
+struct AccStepper <: AccStep
+    step::Float64
+    function AccStepper()
+        new(0.0)
+    end
+    function AccStepper(q::Number, d::Int64, k::Number)
+        new(d == 0 ? q : round(q + Float64(d)/Float64(k), digits=EPS))
     end
 end
 
-struct AgeCounter <: AgeCount
-    value::Int64
-    stepper::Function
-    function AgeCounter(v::Int64)
-        new(v, age_stepper)
+struct AgeStepper <: AgeStep
+    step::Int64
+    function AgeStepper()
+        new(0)
+    end
+    function AgeStepper(q::Number, d::Int64, k::Number)
+        new(q + one(q))
     end
 end
 
-struct CustomCounter <: CusCount
-    value::Number
-    stepper::Function
-    function CustomCounter(v::Number, stepper::Function)
-        new(v, stepper)
-    end
+function get_stepper(h::HazTypes)
+    return typeof(h) <: AgeHaz ? AgeStepper : AccStepper
 end
 
 struct MemberKey
-    counters::Dict{String,CounTypes}
-    function MemberKey(c::Dict{String,CounTypes})
-        new(c)
+    a::Number
+    b::Number
+    c::Number
+    d::Number
+    e::Number
+    function MemberKey(n1::Number)
+        return new(n1,-1,-1,-1,-1)
     end
-    function MemberKey(h::Dict{String,HazTypes})
-        c = Dict{String,CounTypes}()
-        for (q,ht) in h
-            c[q] = typeof(ht) <: AgeHaz ? AgeCounter(0) : AccCounter(0.0)
-        end
-        new(c)
+    function MemberKey(n1::Number,n2::Number)
+        return new(n1,n2,-1,-1,-1)
     end
-    function MemberKey(h::Dict{String,HazTypes}, v::Dict{String,N}) where {N <: Number}
-        c = Dict{String,CounTypes}()
-        for (q,ht) in h
-            c[q] = typeof(ht) <: AgeHaz ? AgeCounter(v[q]) : AccCounter(v[q])
-        end
-        new(c)
+    function MemberKey(n1::Number,n2::Number,n3::Number)
+        return new(n1,n2,n3,-1,-1)
     end
-    function MemberKey(m::MemberKey, v::Dict{String,N}) where {N <: Number}
-        c = Dict{String,CounTypes}()
-        for (q,ct) in m.counters
-            c[q] = haskey(v,q) ? typeof(ct)(v[q]) : ct
+    function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number)
+        return new(n1,n2,n3,n4,-1)
+    end
+    function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number,n5::Number)
+        return new(n1,n2,n3,n4,n5)
+    end
+    function MemberKey(h::Array{HazTypes, 1})
+        n = length(h)
+        if n > 5
+            throw(ArgumentError("At most 5 processes are allowed"))
         end
-        new(c)
+        return new(n>0 ? get_stepper(h[1])().step : -1,
+                   n>1 ? get_stepper(h[2])().step : -1,
+                   n>2 ? get_stepper(h[3])().step : -1,
+                   n>3 ? get_stepper(h[4])().step : -1,
+                   n>4 ? get_stepper(h[5])().step : -1)
+    end
+    function MemberKey(f::Array{DataType, 1})
+        n = length(f)
+        if n > 5
+            throw(ArgumentError("At most 5 processes are allowed"))
+        end
+        return new(n>0 ? f[1]().step : -1,
+                   n>1 ? f[2]().step : -1,
+                   n>2 ? f[3]().step : -1,
+                   n>3 ? f[4]().step : -1,
+                   n>4 ? f[5]().step : -1)
+    end
+    function MemberKey(m::MemberKey, f::Array{DataType, 1}, n::Int64, d::Int64, k::Number)
+        if n > 5 || n < 1
+            throw(ArgumentError("At most 5 processes are allowed"))
+        end
+        return new(n==1 ? f[1](m.a,d,k).step : -1,
+                   n==2 ? f[2](m.b,d,k).step : -1,
+                   n==3 ? f[3](m.c,d,k).step : -1,
+                   n==4 ? f[4](m.d,d,k).step : -1,
+                   n==5 ? f[5](m.e,d,k).step : -1)
     end
 end
 
@@ -474,16 +490,16 @@ Tabulate development table
 Return a tuple of two `Dict` objects, the first which indexes counts by development ages and the second by fraction of development completed.
 
 """
-function GetPoptable(poptable::Dict{MemberKey, T}) where {T<:Number}
-    ra = Dict{Int64, T}()
-    rd = Dict{Float64, T}()
-    rdc = Dict{Int64, T}()
+function GetPoptable(poptable::Dict{M, T}) where {T<:Number, M<:MemberKey}
+    r = [Dict() for _ in 1:5]
     for (x,n) in poptable
-        ra[x.age] = haskey(ra,x.age) ? ra[x.age] + n : n
-        rd[x.dev] = haskey(rd,x.dev) ? rd[x.dev] + n : n
-        rdc[x.devc] = haskey(rd,x.devc) ? rd[x.devc] + n : n
+        if x.a >= 0 && haskey(r[1], x.a); r[1][x.a] += n; else; r[1][x.a] = n; end
+        if x.b >= 0 && haskey(r[2], x.b); r[2][x.b] += n; else; r[2][x.b] = n; end
+        if x.c >= 0 && haskey(r[3], x.c); r[3][x.c] += n; else; r[3][x.c] = n; end
+        if x.d >= 0 && haskey(r[4], x.d); r[4][x.d] += n; else; r[4][x.d] = n; end
+        if x.e >= 0 && haskey(r[5], x.e); r[5][x.e] += n; else; r[5][x.e] = n; end
     end
-    return ra, rd, rdc
+    return r
 end
 
 # --------------------------------------------------------------------------------
@@ -534,13 +550,11 @@ for ageing or accumulation based development processes, respectively.
 struct Population
     data::PopDataTypes
     update::UpdateTypes
-    order::Array{String, 1}
-    hazards::Dict{String, HazTypes}
+    hazards::Array{HazTypes, 1}
+    steppers::Array{DataType, 1}
     function Population(d::PopDataTypes)
         u::UpdateTypes = typeof(d) <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
-        o = Array{String, 1}()
-        h = Dict{String, HazTypes}()
-        new(d, u, o, h)
+        new(d, u, [], [])
     end
 end
 
@@ -548,9 +562,49 @@ end
 Add processes in the order to be executed
 
 """
-function AddProcess(pop::Population, name::String, h::HazTypes)
-    pop.hazards[name] = h
-    push!(pop.order, name)
+function AddProcess(pop::Population, h1::HazTypes)
+    push!(pop.hazards, h1)
+    push!(pop.steppers, get_stepper(h1))
+end
+
+function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes)
+    push!(pop.hazards, h1)
+    push!(pop.steppers, get_stepper(h1))
+    push!(pop.hazards, h2)
+    push!(pop.steppers, get_stepper(h2))
+end
+
+function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes)
+    push!(pop.hazards, h1)
+    push!(pop.steppers, get_stepper(h1))
+    push!(pop.hazards, h2)
+    push!(pop.steppers, get_stepper(h2))
+    push!(pop.hazards, h3)
+    push!(pop.steppers, get_stepper(h3))
+end
+
+function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes)
+    push!(pop.hazards, h1)
+    push!(pop.steppers, get_stepper(h1))
+    push!(pop.hazards, h2)
+    push!(pop.steppers, get_stepper(h2))
+    push!(pop.hazards, h3)
+    push!(pop.steppers, get_stepper(h3))
+    push!(pop.hazards, h4)
+    push!(pop.steppers, get_stepper(h4))
+end
+
+function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes, h5::HazTypes)
+    push!(pop.hazards, h1)
+    push!(pop.steppers, get_stepper(h1))
+    push!(pop.hazards, h2)
+    push!(pop.steppers, get_stepper(h2))
+    push!(pop.hazards, h3)
+    push!(pop.steppers, get_stepper(h3))
+    push!(pop.hazards, h4)
+    push!(pop.steppers, get_stepper(h4))
+    push!(pop.hazards, h5)
+    push!(pop.steppers, get_stepper(h5))
 end
 
 
@@ -563,27 +617,38 @@ i.e. the number of times an individual completed the development process.
 
 """
 function AddPop(pop::Population, n::Number)
-    key = MemberKey(pop.hazards)
-    pop.data.poptable_current[key] = n
+    key = MemberKey(pop.steppers)
+    add_key(pop.data.poptable_current, key, n)
 end
 
-function AddPop(pop::Population, n::Number, age::Number, dev::Number)
-    key = MemberKey(max(age,0), max(0.0,dev), 0)
-    pop.data.poptable_current[key] = n
+function AddPop(pop::Population, n::Number, h1::Number)
+    key = MemberKey(h1)
+    add_key(pop.data.poptable_current, key, n)
 end
 
-function AddPop(pop::Population, n::Number, age::Number, dev::Number, devc::Number)
-    key = MemberKey(max(age,0), max(0.0,dev), max(devc, 0))
-    pop.data.poptable_current[key] = n
+function AddPop(pop::Population, n::Number, h1::Number, h2::Number)
+    key = MemberKey(h1,h2)
+    add_key(pop.data.poptable_current, key, n)
+end
+
+function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number)
+    key = MemberKey(h1,h2,h3)
+    add_key(pop.data.poptable_current, key, n)
+end
+
+function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number)
+    key = MemberKey(h1,h2,h3,h4)
+    add_key(pop.data.poptable_current, key, n)
+end
+
+function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number, h5::Number)
+    key = MemberKey(h1,h2,h3,h4,h5)
+    add_key(pop.data.poptable_current, key, n)
 end
 
 function AddPop(popto::Population, popfrom::Population)
     for (q,n) in popfrom.data.poptable_current
-        if haskey(popto.data.poptable_current, q)
-            popto.data.poptable_current[q] += n
-        else 
-            popto.data.poptable_current[q] = n
-        end
+        add_key(popto.data.poptable_current, q, n)
     end
 end
 
