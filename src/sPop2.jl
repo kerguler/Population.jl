@@ -53,7 +53,7 @@ Hazard Calculation for Accumulative Development Process
 The hazard is computed as ``\\frac{F(x,θ) - F(x-1,θ)}{1 - F(x-1,θ)} ``
 
 """
-function acc_hazard_calc(age::Number, dev::Number, hazard::AccHaz, k::Number, theta::Number)
+function acc_hazard_calc(hazard::AccHaz, dev::Number, k::Number, theta::Number)
     h0 = dev == 0 ? 0.0 : hazard.eval(dev - 1, theta)
     h1 = hazard.eval(dev, theta)
     h0 == 1.0 ? 1.0 : (h1 - h0) / (1.0 - h0)
@@ -65,10 +65,11 @@ Hazard Calculation for Age-Dependent Development Process
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function age_hazard_calc(age::Number, dev::Number, hazard::AgeHaz, k::Number, theta::Number)
+function age_hazard_calc(hazard::AgeHaz, age::Number, k::Number, theta::Number)
     h0 = hazard.eval(age - 1, k, theta)
     h1 = hazard.eval(age, k, theta)
-    h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0)
+    # h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
+    h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
 end
 
 """
@@ -77,8 +78,16 @@ Hazard Calculation for Generic Development Process
 The hazard is the probability provided by the user
 
 """
-function gen_hazard_calc(age::Number, dev::Number, hazard::AgeHaz, k::Number, theta::Number)
+function gen_hazard_calc(hazard::AgeHaz, age::Number, k::Number, theta::Number)
     hazard.eval(age, k, theta)
+end
+
+function age_hazard_check(a::Int64)
+    return false
+end
+
+function acc_hazard_check(d::Float64)
+    return d >= ACCTHR
 end
 
 # accumulation types ------------------------------------------------------------
@@ -111,8 +120,9 @@ struct AccFixed <: AccHaz
     pars::Function
     eval::Function
     func::Function
+    check::Function
     function AccFixed()
-        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc)
+        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc, acc_hazard_check)
     end
 end
 
@@ -149,8 +159,9 @@ struct AccPascal <: AccHaz
     pars::Function
     eval::Function
     func::Function
+    check::Function
     function AccPascal()
-        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc)
+        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc, acc_hazard_check)
     end
 end
 
@@ -191,8 +202,9 @@ struct AccErlang <: AccHaz
     pars::Function
     eval::Function
     func::Function
+    check::Function
     function AccErlang()
-        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc)
+        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc, acc_hazard_check)
     end
 end
 
@@ -226,8 +238,9 @@ struct AgeConst <: AgeHaz
     pars::Function
     eval::Function
     func::Function
+    check::Function
     function AgeConst()
-        new(age_const_pars, age_const_haz, gen_hazard_calc)
+        new(age_const_pars, age_const_haz, gen_hazard_calc, age_hazard_check)
     end
 end
 
@@ -235,7 +248,7 @@ end
 function age_fixed_pars(pars::T) where {T <: NamedTuple}
     k = round(pars.devmn)
     theta = 1.0
-    return k, theta, true
+    return k, theta, false
 end
 
 function age_fixed_haz(i::Number, k::Number, theta::Number)
@@ -259,8 +272,9 @@ struct AgeFixed <: AgeHaz
     pars::Function
     eval::Function
     func::Function
+    check::Function
     function AgeFixed()
-        new(age_fixed_pars, age_fixed_haz, age_hazard_calc)
+        new(age_fixed_pars, age_fixed_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
@@ -269,7 +283,7 @@ function age_nbinom_pars(pars::T) where {T <: NamedTuple}
     theta = pars.devmn / (pars.devsd^2)
     (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(pars.devmn) and sd=$(pars.devsd)"))
     k = pars.devmn * theta / (1.0 - theta)
-    return k, theta, true
+    return k, theta, false
 end
 
 function age_nbinom_haz(i::Number, k::Number, theta::Number)
@@ -293,8 +307,9 @@ struct AgeNbinom <: AgeHaz
     pars::Function
     eval::Function
     func::Function
+    check::Function
     function AgeNbinom()
-        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc)
+        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
@@ -302,7 +317,7 @@ end
 function age_gamma_pars(pars::T) where {T <: NamedTuple}
     theta = (pars.devsd^2) / pars.devmn
     k = pars.devmn / theta
-    return k, theta, true
+    return k, theta, false
 end
 
 function age_gamma_haz(i::Number, k::Number, theta::Number)
@@ -326,8 +341,9 @@ struct AgeGamma <: AgeHaz
     pars::Function
     eval::Function
     func::Function
+    check::Function
     function AgeGamma()
-        new(age_gamma_pars, age_gamma_haz, age_hazard_calc)
+        new(age_gamma_pars, age_gamma_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
@@ -676,8 +692,7 @@ its standard deviation, and `death` is the per-capita mortality probability.
 
 """
 function StepPopMain(pop::Population, pars::Tuple)
-    dead = zero(valtype(pop.data.poptable_current))
-    developed = zero(valtype(pop.data.poptable_current))
+    completed = [zero(valtype(pop.data.poptable_current)) for _ in 1:length(pop.hazards)]
     #
     hazpar = []
     for i in 1:length(pop.hazards)
@@ -685,87 +700,80 @@ function StepPopMain(pop::Population, pars::Tuple)
         push!(hazpar, (k=k, theta=theta, stay=stay))
     end
     #
-    size = zero(valtype(pop.data.poptable_current))
-    #
     empty!(pop.data.poptable_done)
     empty!(pop.data.poptable_next)
     #
     poptable = pop.data.poptable_current
     poptablenext = Dict{keytype(poptable),valtype(poptable)}()
-    # apply processes
-    for name in pop.order
+    #
+    for i in 1:length(pop.hazards)
+        hazard = pop.hazards[i]
+        k, theta, stay = hazpar[i]
+        if theta == 0.0 || k == 0
+            continue
+        end
+        #
         for (q,n) in poptable
             if n == 0
                 continue
             end
             #
-            dev = 0
+            dev = zero(Int64)
             while n > zero(valtype(pop.data.poptable_current))
-                k, theta, stay = hazpar[name]
-                if theta > 0.0 && k > 0
-                end
+                q2 = MemberKey(q, pop.steppers, i, dev, k)
                 #
-                counter::CounType = q.counters[name]
-                qdev = counter.stepper(counter, dev, k)
-                #
-                if qdev >= ACCTHR
-                    q2 = MemberKey(age, qdev, q.devc+1)
-                    add_key(pop.data.poptable_done, q2, n)
-                    developed += n
+                if hazard.check(q2.key[i])
+                    add_key(pop.data.poptable_done,q2,n)
+                    completed[i] += n
                     n = zero(valtype(pop.data.poptable_current))
                 else
-                    p = pop.hazard.func(age, dev, pop.hazard, k, theta)
+                    p = hazard.func(hazard, q2.key[i], k, theta)
                     n2 = pop.update(n, p)
                     n -= n2
                     #
-                    if typeof(pop.hazard) <: AgeHaz
-                        if n2 > zero(valtype(pop.data.poptable_current))
-                            q2 = MemberKey(age, qdev, q.devc+1)
-                            add_key(pop.data.poptable_done, q2, n2)
-                            developed += n2
-                        end
-                        q2 = MemberKey(age, qdev, q.devc)
-                        add_key(pop.data.poptable_next, q2, n)
-                        break
-                    else
-                        q2 = MemberKey(age, qdev, q.devc)
-                        add_key(pop.data.poptable_next, q2, n2)
-                    end
-                    dev += 1
+                    add_key(poptablenext, q2, n2) # Developing / surviving population
+                    #
+                    dev += one(dev)
                 end
                 #
                 if !stay
+                    if n > 0 # Remaining population to be left out
+                        add_key(pop.data.poptable_done, q2, n)
+                        completed[i] += n
+                    end
                     break
                 end
-            end    
+            end
         end
+        #
+        poptable = poptablenext        
     end
-    #
+    size = zero(valtype(pop.data.poptable_current))
     empty!(pop.data.poptable_current)
-    for (q,n) in pop.data.poptable_next
+    for (q,n) in poptable
         pop.data.poptable_current[q] = n
         size += n
     end
-    return size, developed, dead, pop.data.poptable_done
+    return size, completed, pop.data.poptable_done    
 end
 
-function StepPop(pop::Population, pr1::Tuple)
-    StepPopMain(pop, (pr1))
+function StepPop(pop::Population, pr1::NamedTuple)
+    StepPopMain(pop, (pr1,))
 end
 
-function StepPop(pop::Population, pr1::Tuple, pr2::Tuple)
+function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple)
     StepPopMain(pop, (pr1, pr2))
 end
 
-function StepPop(pop::Population, pr1::Tuple, pr2::Tuple, pr3::Tuple)
+function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple)
     StepPopMain(pop, (pr1, pr2, pr3))
 end
 
-function StepPop(pop::Population, pr1::Tuple, pr2::Tuple, pr3::Tuple, pr4::Tuple)
+function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple, pr4::NamedTuple)
     StepPopMain(pop, (pr1, pr2, pr3, pr4))
 end
 
-function StepPop(pop::Population, pr1::Tuple, pr2::Tuple, pr3::Tuple, pr4::Tuple, pr5::Tuple)
+function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple, pr4::NamedTuple, pr5::NamedTuple)
     StepPopMain(pop, (pr1, pr2, pr3, pr4, pr5))
 end
 
