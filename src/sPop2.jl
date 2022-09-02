@@ -48,38 +48,16 @@ abstract type AccHaz <: HazTypes end
 abstract type AgeHaz <: HazTypes end
 
 """
-Hazard Calculation for Accumulative Development Process
-
-The hazard is computed as ``\\frac{F(x,θ) - F(x-1,θ)}{1 - F(x-1,θ)} ``
-
-"""
-function acc_hazard_calc(hazard::AccHaz, dev::Number, k::Number, theta::Number)
-    h0 = dev == 0 ? 0.0 : hazard.eval(dev - 1, theta)
-    h1 = hazard.eval(dev, theta)
-    h0 == 1.0 ? 1.0 : (h1 - h0) / (1.0 - h0)
-end
-
-"""
 Hazard Calculation for Age-Dependent Development Process
 
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function age_hazard_calc(hazard::AgeHaz, age::Number, k::Number, theta::Number)
-    h0 = hazard.eval(age - 1, k, theta)
-    h1 = hazard.eval(age, k, theta)
+function hazard_calc(hazard::HazTypes, d::Number, k::Number, theta::Number)
+    h0 = hazard.eval(d - one(d), k, theta)
+    h1 = hazard.eval(d, k, theta)
     # h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
     h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
-end
-
-"""
-Hazard Calculation for Generic Development Process
-
-The hazard is the probability provided by the user
-
-"""
-function gen_hazard_calc(hazard::AgeHaz, age::Number, k::Number, theta::Number)
-    hazard.eval(age, k, theta)
 end
 
 function age_hazard_check(a::Int64)
@@ -99,8 +77,8 @@ function acc_fixed_pars(pars::T) where {T <: NamedTuple}
     return k, theta, true
 end
 
-function acc_fixed_haz(i::Number, theta::Number)
-    Float64(i >= theta)
+function acc_fixed_haz(i::Number, k::Number, theta::Number)
+    Float64(i >= k)
 end
 
 """
@@ -119,10 +97,9 @@ The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has
 struct AccFixed <: AccHaz
     pars::Function
     eval::Function
-    func::Function
     check::Function
     function AccFixed()
-        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc, acc_hazard_check)
+        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_check)
     end
 end
 
@@ -138,8 +115,8 @@ function acc_pascal_pars(pars::T) where {T <: NamedTuple}
     return k, theta, true
 end
 
-function acc_pascal_haz(i::Number, theta::Number)
-    1.0 - theta^(i + 1.0)
+function acc_pascal_haz(i::Number, k::Number, theta::Number)
+    Float64(1.0 - theta^(i + 1.0))
 end
 
 """
@@ -158,10 +135,9 @@ The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has
 struct AccPascal <: AccHaz
     pars::Function
     eval::Function
-    func::Function
     check::Function
     function AccPascal()
-        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc, acc_hazard_check)
+        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_check)
     end
 end
 
@@ -181,8 +157,8 @@ function acc_erlang_pars(pars::T) where {T <: NamedTuple}
     return k, theta, true
 end
 
-function acc_erlang_haz(i::Number, theta::Number)
-    cdf(Poisson(1.0/theta), i)
+function acc_erlang_haz(i::Number, k::Number, theta::Number)
+    Float64(cdf(Poisson(1.0/theta), i))
 end
 
 """
@@ -201,10 +177,9 @@ The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has
 struct AccErlang <: AccHaz
     pars::Function
     eval::Function
-    func::Function
     check::Function
     function AccErlang()
-        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc, acc_hazard_check)
+        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_check)
     end
 end
 
@@ -237,10 +212,9 @@ The struct `AgeConst` inherits from the abstract type `AgeHaz` (which itself has
 struct AgeConst <: AgeHaz
     pars::Function
     eval::Function
-    func::Function
     check::Function
     function AgeConst()
-        new(age_const_pars, age_const_haz, gen_hazard_calc, age_hazard_check)
+        new(age_const_pars, age_const_haz, age_hazard_check)
     end
 end
 
@@ -271,10 +245,9 @@ The struct `AgeFixed` inherits from the abstract type `AgeHaz` (which itself has
 struct AgeFixed <: AgeHaz
     pars::Function
     eval::Function
-    func::Function
     check::Function
     function AgeFixed()
-        new(age_fixed_pars, age_fixed_haz, age_hazard_calc, age_hazard_check)
+        new(age_fixed_pars, age_fixed_haz, age_hazard_check)
     end
 end
 
@@ -306,10 +279,9 @@ The struct `AgeNbinom` inherits from the abstract type `AgeHaz` (which itself ha
 struct AgeNbinom <: AgeHaz
     pars::Function
     eval::Function
-    func::Function
     check::Function
     function AgeNbinom()
-        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc, age_hazard_check)
+        new(age_nbinom_pars, age_nbinom_haz, age_hazard_check)
     end
 end
 
@@ -340,10 +312,9 @@ The struct `AgeGamma` inherits from the abstract type `AgeHaz` (which itself has
 struct AgeGamma <: AgeHaz
     pars::Function
     eval::Function
-    func::Function
     check::Function
     function AgeGamma()
-        new(age_gamma_pars, age_gamma_haz, age_hazard_calc, age_hazard_check)
+        new(age_gamma_pars, age_gamma_haz, age_hazard_check)
     end
 end
 
@@ -442,19 +413,13 @@ end
 Population data for deterministic models
 
 Return a struct inheriting from `PopDataTypes` with 3 fields:
-- `poptable_current`: a `Dict` mapping `Float64` by `MemberKey` keys
-- `poptable_next`: a `Dict` mapping `Float64` by `MemberKey` keys
-- `poptable_done`: a `Dict` mapping `Float64` by `MemberKey` keys
+- `poptable`: a `Dict` mapping `Float64` by `MemberKey` keys
 
 """
 struct PopDataDet <: PopDataTypes
-    poptable_current::Dict{MemberKey, Float64}
-    poptable_next::Dict{MemberKey, Float64}
-    poptable_done::Dict{MemberKey, Float64}
+    poptable::Dict{MemberKey, Float64}
     function PopDataDet()
-        new(Dict{MemberKey, Float64}(),
-            Dict{MemberKey, Float64}(),
-            Dict{MemberKey, Float64}())
+        new(Dict{MemberKey, Float64}())
     end
 end
 
@@ -462,19 +427,13 @@ end
 Population data for stochastic models
 
 Return a struct inheriting from `PopDataTypes` with 3 fields:
-- `poptable_current`: a `Dict` mapping `Int64` by `MemberKey` keys
-- `poptable_next`: a `Dict` mapping `Int64` by `MemberKey` keys
-- `poptable_done`: a `Dict` mapping `Int64` by `MemberKey` keys
+- `poptable`: a `Dict` mapping `Int64` by `MemberKey` keys
 
 """
 struct PopDataSto <: PopDataTypes
-    poptable_current::Dict{MemberKey, Int64}
-    poptable_next::Dict{MemberKey, Int64}
-    poptable_done::Dict{MemberKey, Int64}
+    poptable::Dict{MemberKey, Int64}
     function PopDataSto()
-        new(Dict{MemberKey, Int64}(),
-            Dict{MemberKey, Int64}(),
-            Dict{MemberKey, Int64}())
+        new(Dict{MemberKey, Int64}())
     end
 end
 
@@ -614,37 +573,37 @@ i.e. the number of times an individual completed the development process.
 """
 function AddPop(pop::Population, n::Number)
     key = MemberKey(pop.steppers)
-    add_key(pop.data.poptable_current, key, n)
+    add_key(pop.data.poptable, key, n)
 end
 
 function AddPop(pop::Population, n::Number, h1::Number)
     key = MemberKey(h1)
-    add_key(pop.data.poptable_current, key, n)
+    add_key(pop.data.poptable, key, n)
 end
 
 function AddPop(pop::Population, n::Number, h1::Number, h2::Number)
     key = MemberKey(h1,h2)
-    add_key(pop.data.poptable_current, key, n)
+    add_key(pop.data.poptable, key, n)
 end
 
 function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number)
     key = MemberKey(h1,h2,h3)
-    add_key(pop.data.poptable_current, key, n)
+    add_key(pop.data.poptable, key, n)
 end
 
 function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number)
     key = MemberKey(h1,h2,h3,h4)
-    add_key(pop.data.poptable_current, key, n)
+    add_key(pop.data.poptable, key, n)
 end
 
 function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number, h5::Number)
     key = MemberKey(h1,h2,h3,h4,h5)
-    add_key(pop.data.poptable_current, key, n)
+    add_key(pop.data.poptable, key, n)
 end
 
 function AddPop(popto::Population, popfrom::Population)
-    for (q,n) in popfrom.data.poptable_current
-        add_key(popto.data.poptable_current, q, n)
+    for (q,n) in popfrom.data.poptable
+        add_key(popto.data.poptable, q, n)
     end
 end
 
@@ -655,8 +614,8 @@ Return the total number of individuals in this population.
 
 """
 function GetPop(pop::Population)
-    size = zero(valtype(pop.data.poptable_current))
-    for n in values(pop.data.poptable_current)
+    size = zero(valtype(pop.data.poptable))
+    for n in values(pop.data.poptable)
         size += n
     end
     return size
@@ -673,9 +632,7 @@ Remove all individuals from this population.
 
 """
 function EmptyPop(pop::Population)
-    empty!(pop.data.poptable_current)
-    empty!(pop.data.poptable_next)
-    empty!(pop.data.poptable_done)
+    empty!(pop.data.poptable)
     #
     return true
 end
@@ -692,7 +649,7 @@ its standard deviation, and `death` is the per-capita mortality probability.
 
 """
 function StepPopMain(pop::Population, pars::Tuple)
-    completed = [zero(valtype(pop.data.poptable_current)) for _ in 1:length(pop.hazards)]
+    completed = [zero(valtype(pop.data.poptable)) for _ in 1:length(pop.hazards)]
     #
     hazpar = []
     for i in 1:length(pop.hazards)
@@ -700,11 +657,9 @@ function StepPopMain(pop::Population, pars::Tuple)
         push!(hazpar, (k=k, theta=theta, stay=stay))
     end
     #
-    empty!(pop.data.poptable_done)
-    empty!(pop.data.poptable_next)
-    #
-    poptable = pop.data.poptable_current
+    poptable = pop.data.poptable
     poptablenext = Dict{keytype(poptable),valtype(poptable)}()
+    poptabledone = Dict{keytype(poptable),valtype(poptable)}()
     #
     for i in 1:length(pop.hazards)
         hazard = pop.hazards[i]
@@ -714,31 +669,35 @@ function StepPopMain(pop::Population, pars::Tuple)
         end
         #
         for (q,n) in poptable
-            if n == 0
+            if n == zero(valtype(pop.data.poptable))
                 continue
             end
             #
             dev = zero(Int64)
-            while n > zero(valtype(pop.data.poptable_current))
+            while n > zero(valtype(pop.data.poptable))
                 q2 = MemberKey(q, pop.steppers, i, dev, k)
+                print(q2,"\n")
                 #
                 if hazard.check(q2.key[i])
-                    add_key(pop.data.poptable_done,q2,n)
+                    add_key(poptabledone,q2,n)
                     completed[i] += n
-                    n = zero(valtype(pop.data.poptable_current))
+                    n = zero(valtype(pop.data.poptable))
                 else
-                    p = hazard.func(hazard, q2.key[i], k, theta)
+                    p = hazard_calc(hazard, q2.key[i], k, theta)
+                    print(q2.key[i]," ",k," ",theta," ",i," ",dev," ",n," ",p,"\n")
                     n2 = pop.update(n, p)
                     n -= n2
                     #
-                    add_key(poptablenext, q2, n2) # Developing / surviving population
+                    if n2 > zero(valtype(pop.data.poptable))
+                        add_key(poptablenext, q2, n2) # Developing / surviving population
+                    end
                     #
                     dev += one(dev)
                 end
                 #
                 if !stay
-                    if n > 0 # Remaining population to be left out
-                        add_key(pop.data.poptable_done, q2, n)
+                    if n > zero(valtype(pop.data.poptable))
+                        add_key(poptabledone, q2, n) # Remaining population to be left out
                         completed[i] += n
                     end
                     break
@@ -746,15 +705,16 @@ function StepPopMain(pop::Population, pars::Tuple)
             end
         end
         #
-        poptable = poptablenext        
+        poptable = poptablenext
+        poptablenext = Dict{keytype(poptable),valtype(poptable)}()
     end
-    size = zero(valtype(pop.data.poptable_current))
-    empty!(pop.data.poptable_current)
+    size = zero(valtype(pop.data.poptable))
+    empty!(pop.data.poptable)
     for (q,n) in poptable
-        pop.data.poptable_current[q] = n
+        pop.data.poptable[q] = n
         size += n
     end
-    return size, completed, pop.data.poptable_done    
+    return size, completed, poptabledone    
 end
 
 function StepPop(pop::Population, pr1::NamedTuple)
