@@ -84,8 +84,8 @@ end
 # accumulation types ------------------------------------------------------------
 
 # fixed accumulation
-function acc_fixed_pars(pars::Dict)
-    k = round(pars["devmn"])
+function acc_fixed_pars(pars::T) where {T <: NamedTuple}
+    k = round(pars.devmn)
     theta = 1.0
     return k, theta, true
 end
@@ -117,13 +117,13 @@ struct AccFixed <: AccHaz
 end
 
 # pascal
-function acc_pascal_pars(pars::Dict)
-    theta = pars["devmn"] / (pars["devsd"]^2)
-    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Pascal cannot yield mean=$(pars["devmn"]) and sd=$(pars["devsd"])"))
-    k = pars["devmn"] * theta / (1.0 - theta)
+function acc_pascal_pars(pars::T) where {T <: NamedTuple}
+    theta = pars.devmn / (pars.devsd^2)
+    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Pascal cannot yield mean=$(pars.devmn) and sd=$(pars.devsd)"))
+    k = pars.devmn * theta / (1.0 - theta)
     if k != round(k)
         k = round(k)
-        theta = k / (pars["devmn"] + k)
+        theta = k / (pars.devmn + k)
     end
     return k, theta, true
 end
@@ -155,12 +155,12 @@ struct AccPascal <: AccHaz
 end
 
 # Erlang
-function acc_erlang_pars(pars::Dict)
-    theta = (pars["devsd"]^2) / pars["devmn"]
-    k = pars["devmn"] / theta
+function acc_erlang_pars(pars::T) where {T <: NamedTuple}
+    theta = (pars.devsd^2) / pars.devmn
+    k = pars.devmn / theta
     if k != round(k)
         k = round(k)
-        theta = pars["devmn"] / k
+        theta = pars.devmn / k
         m = k*theta
         s = (theta*m)^0.5
         if verbose
@@ -199,9 +199,9 @@ end
 # age types ------------------------------------------------------------
 
 # constant age
-function age_const_pars(pars::Dict)
+function age_const_pars(pars::T) where {T <: NamedTuple}
     k = 1.0
-    theta = min(1.0, max(0.0, pars["prob"]))
+    theta = min(1.0, max(0.0, pars.prob))
     return k, theta, false
 end
 
@@ -232,8 +232,8 @@ struct AgeConst <: AgeHaz
 end
 
 # fixed age
-function age_fixed_pars(pars::Dict)
-    k = round(pars["devmn"])
+function age_fixed_pars(pars::T) where {T <: NamedTuple}
+    k = round(pars.devmn)
     theta = 1.0
     return k, theta, true
 end
@@ -265,10 +265,10 @@ struct AgeFixed <: AgeHaz
 end
 
 # negative binomial age
-function age_nbinom_pars(pars::Dict)
-    theta = pars["devmn"] / (pars["devsd"]^2)
-    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(pars["devmn"]) and sd=$(pars["devsd"])"))
-    k = pars["devmn"] * theta / (1.0 - theta)
+function age_nbinom_pars(pars::T) where {T <: NamedTuple}
+    theta = pars.devmn / (pars.devsd^2)
+    (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(pars.devmn) and sd=$(pars.devsd)"))
+    k = pars.devmn * theta / (1.0 - theta)
     return k, theta, true
 end
 
@@ -299,9 +299,9 @@ struct AgeNbinom <: AgeHaz
 end
 
 # gamma age
-function age_gamma_pars(pars::Dict)
-    theta = (pars["devsd"]^2) / pars["devmn"]
-    k = pars["devmn"] / theta
+function age_gamma_pars(pars::T) where {T <: NamedTuple}
+    theta = (pars.devsd^2) / pars.devmn
+    k = pars.devmn / theta
     return k, theta, true
 end
 
@@ -376,57 +376,49 @@ function get_stepper(h::HazTypes)
 end
 
 struct MemberKey
-    a::Number
-    b::Number
-    c::Number
-    d::Number
-    e::Number
+    key::Tuple{Number,Number,Number,Number,Number}
     function MemberKey(n1::Number)
-        return new(n1,-1,-1,-1,-1)
+        return new((n1,-1,-1,-1,-1))
     end
     function MemberKey(n1::Number,n2::Number)
-        return new(n1,n2,-1,-1,-1)
+        return new((n1,n2,-1,-1,-1))
     end
     function MemberKey(n1::Number,n2::Number,n3::Number)
-        return new(n1,n2,n3,-1,-1)
+        return new((n1,n2,n3,-1,-1))
     end
     function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number)
-        return new(n1,n2,n3,n4,-1)
+        return new((n1,n2,n3,n4,-1))
     end
     function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number,n5::Number)
-        return new(n1,n2,n3,n4,n5)
+        return new((n1,n2,n3,n4,n5))
     end
     function MemberKey(h::Array{HazTypes, 1})
         n = length(h)
         if n > 5
             throw(ArgumentError("At most 5 processes are allowed"))
         end
-        return new(n>0 ? get_stepper(h[1])().step : -1,
-                   n>1 ? get_stepper(h[2])().step : -1,
-                   n>2 ? get_stepper(h[3])().step : -1,
-                   n>3 ? get_stepper(h[4])().step : -1,
-                   n>4 ? get_stepper(h[5])().step : -1)
+        return new((n>0 ? get_stepper(h[1])().step : -1,
+                    n>1 ? get_stepper(h[2])().step : -1,
+                    n>2 ? get_stepper(h[3])().step : -1,
+                    n>3 ? get_stepper(h[4])().step : -1,
+                    n>4 ? get_stepper(h[5])().step : -1))
     end
     function MemberKey(f::Array{DataType, 1})
         n = length(f)
         if n > 5
             throw(ArgumentError("At most 5 processes are allowed"))
         end
-        return new(n>0 ? f[1]().step : -1,
-                   n>1 ? f[2]().step : -1,
-                   n>2 ? f[3]().step : -1,
-                   n>3 ? f[4]().step : -1,
-                   n>4 ? f[5]().step : -1)
+        return new((n>0 ? f[1]().step : -1,
+                    n>1 ? f[2]().step : -1,
+                    n>2 ? f[3]().step : -1,
+                    n>3 ? f[4]().step : -1,
+                    n>4 ? f[5]().step : -1))
     end
     function MemberKey(m::MemberKey, f::Array{DataType, 1}, n::Int64, d::Int64, k::Number)
         if n > 5 || n < 1
             throw(ArgumentError("At most 5 processes are allowed"))
         end
-        return new(n==1 ? f[1](m.a,d,k).step : -1,
-                   n==2 ? f[2](m.b,d,k).step : -1,
-                   n==3 ? f[3](m.c,d,k).step : -1,
-                   n==4 ? f[4](m.d,d,k).step : -1,
-                   n==5 ? f[5](m.e,d,k).step : -1)
+        return new(Tuple([n==i ? f[i](m.key[i],d,k).step : m.key[i] for i in 1:5]))
     end
 end
 
@@ -491,13 +483,14 @@ Return a tuple of two `Dict` objects, the first which indexes counts by developm
 
 """
 function GetPoptable(poptable::Dict{M, T}) where {T<:Number, M<:MemberKey}
-    r = [Dict() for _ in 1:5]
+    r = []
     for (x,n) in poptable
-        if x.a >= 0 && haskey(r[1], x.a); r[1][x.a] += n; else; r[1][x.a] = n; end
-        if x.b >= 0 && haskey(r[2], x.b); r[2][x.b] += n; else; r[2][x.b] = n; end
-        if x.c >= 0 && haskey(r[3], x.c); r[3][x.c] += n; else; r[3][x.c] = n; end
-        if x.d >= 0 && haskey(r[4], x.d); r[4][x.d] += n; else; r[4][x.d] = n; end
-        if x.e >= 0 && haskey(r[5], x.e); r[5][x.e] += n; else; r[5][x.e] = n; end
+        for i in 1:5
+            if x.key[i] >= 0
+                if length(r)<i; push!(r,Dict()); end
+                if haskey(r[i], x.key[i]); r[i][x.key[i]] += n; else; r[i][x.key[i]] = n; end
+            end
+        end
     end
     return r
 end
@@ -568,45 +561,32 @@ function AddProcess(pop::Population, h1::HazTypes)
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes)
-    push!(pop.hazards, h1)
-    push!(pop.steppers, get_stepper(h1))
-    push!(pop.hazards, h2)
-    push!(pop.steppers, get_stepper(h2))
+    for h in (h1, h2)
+        push!(pop.hazards, h)
+        push!(pop.steppers, get_stepper(h))
+    end
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes)
-    push!(pop.hazards, h1)
-    push!(pop.steppers, get_stepper(h1))
-    push!(pop.hazards, h2)
-    push!(pop.steppers, get_stepper(h2))
-    push!(pop.hazards, h3)
-    push!(pop.steppers, get_stepper(h3))
+    for h in (h1, h2, h3)
+        push!(pop.hazards, h)
+        push!(pop.steppers, get_stepper(h))
+    end
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes)
-    push!(pop.hazards, h1)
-    push!(pop.steppers, get_stepper(h1))
-    push!(pop.hazards, h2)
-    push!(pop.steppers, get_stepper(h2))
-    push!(pop.hazards, h3)
-    push!(pop.steppers, get_stepper(h3))
-    push!(pop.hazards, h4)
-    push!(pop.steppers, get_stepper(h4))
+    for h in (h1, h2, h3, h4)
+        push!(pop.hazards, h)
+        push!(pop.steppers, get_stepper(h))
+    end
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes, h5::HazTypes)
-    push!(pop.hazards, h1)
-    push!(pop.steppers, get_stepper(h1))
-    push!(pop.hazards, h2)
-    push!(pop.steppers, get_stepper(h2))
-    push!(pop.hazards, h3)
-    push!(pop.steppers, get_stepper(h3))
-    push!(pop.hazards, h4)
-    push!(pop.steppers, get_stepper(h4))
-    push!(pop.hazards, h5)
-    push!(pop.steppers, get_stepper(h5))
+    for h in (h1, h2, h3, h4, h5)
+        push!(pop.hazards, h)
+        push!(pop.steppers, get_stepper(h))
+    end
 end
-
 
 """
 Add individuals to a population
@@ -695,21 +675,19 @@ Update a population over a single time step, `devmn` is the current mean number 
 its standard deviation, and `death` is the per-capita mortality probability.
 
 """
-function StepPop(pop::Population, pars::Dict{String, Dict})
+function StepPopMain(pop::Population, pars::Tuple)
     dead = zero(valtype(pop.data.poptable_current))
     developed = zero(valtype(pop.data.poptable_current))
     #
-    hazpar = Dict{String, Tuple{Number, Number, Bool}}()
-    for name in pop.order
-        k, theta, stay = pop.hazards[name].pars(pars[name])
-        if theta > 0.0 && k > 0
-            hazpar[name] = (k, theta, stay)
-        end
-        empty!(pop.data.poptable_done[name])
+    hazpar = []
+    for i in 1:length(pop.hazards)
+        k, theta, stay = pop.hazards[i].pars(pars[i])
+        push!(hazpar, (k=k, theta=theta, stay=stay))
     end
     #
     size = zero(valtype(pop.data.poptable_current))
     #
+    empty!(pop.data.poptable_done)
     empty!(pop.data.poptable_next)
     #
     poptable = pop.data.poptable_current
@@ -724,6 +702,8 @@ function StepPop(pop::Population, pars::Dict{String, Dict})
             dev = 0
             while n > zero(valtype(pop.data.poptable_current))
                 k, theta, stay = hazpar[name]
+                if theta > 0.0 && k > 0
+                end
                 #
                 counter::CounType = q.counters[name]
                 qdev = counter.stepper(counter, dev, k)
@@ -767,6 +747,26 @@ function StepPop(pop::Population, pars::Dict{String, Dict})
         size += n
     end
     return size, developed, dead, pop.data.poptable_done
+end
+
+function StepPop(pop::Population, pr1::Tuple)
+    StepPopMain(pop, (pr1))
+end
+
+function StepPop(pop::Population, pr1::Tuple, pr2::Tuple)
+    StepPopMain(pop, (pr1, pr2))
+end
+
+function StepPop(pop::Population, pr1::Tuple, pr2::Tuple, pr3::Tuple)
+    StepPopMain(pop, (pr1, pr2, pr3))
+end
+
+function StepPop(pop::Population, pr1::Tuple, pr2::Tuple, pr3::Tuple, pr4::Tuple)
+    StepPopMain(pop, (pr1, pr2, pr3, pr4))
+end
+
+function StepPop(pop::Population, pr1::Tuple, pr2::Tuple, pr3::Tuple, pr4::Tuple, pr5::Tuple)
+    StepPopMain(pop, (pr1, pr2, pr3, pr4, pr5))
 end
 
 end
