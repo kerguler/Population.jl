@@ -48,14 +48,27 @@ abstract type AccHaz <: HazTypes end
 abstract type AgeHaz <: HazTypes end
 
 """
+Hazard Calculation for Accumulative Development Process
+
+The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
+
+"""
+function acc_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number)
+    h0 = d == zero(d) ? 0.0 : hazard.eval(d - one(d), k, theta)
+    h1 = hazard.eval(d, k, theta)
+    h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
+    # h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
+end
+
+"""
 Hazard Calculation for Age-Dependent Development Process
 
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function hazard_calc(hazard::HazTypes, d::Number, k::Number, theta::Number)
-    h0 = hazard.eval(d - one(d), k, theta)
-    h1 = hazard.eval(d, k, theta)
+function age_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number)
+    h0 = q == zero(q) ? 0.0 : hazard.eval(q - one(q), k, theta)
+    h1 = hazard.eval(q, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
     # h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
 end
@@ -97,9 +110,10 @@ The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has
 struct AccFixed <: AccHaz
     pars::Function
     eval::Function
+    func::Function
     check::Function
     function AccFixed()
-        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_check)
+        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc, acc_hazard_check)
     end
 end
 
@@ -135,9 +149,10 @@ The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has
 struct AccPascal <: AccHaz
     pars::Function
     eval::Function
+    func::Function
     check::Function
     function AccPascal()
-        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_check)
+        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc, acc_hazard_check)
     end
 end
 
@@ -175,9 +190,10 @@ The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has
 struct AccErlang <: AccHaz
     pars::Function
     eval::Function
+    func::Function
     check::Function
     function AccErlang()
-        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_check)
+        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc, acc_hazard_check)
     end
 end
 
@@ -210,9 +226,10 @@ The struct `AgeConst` inherits from the abstract type `AgeHaz` (which itself has
 struct AgeConst <: AgeHaz
     pars::Function
     eval::Function
+    func::Function
     check::Function
     function AgeConst()
-        new(age_const_pars, age_const_haz, age_hazard_check)
+        new(age_const_pars, age_const_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
@@ -243,9 +260,10 @@ The struct `AgeFixed` inherits from the abstract type `AgeHaz` (which itself has
 struct AgeFixed <: AgeHaz
     pars::Function
     eval::Function
+    func::Function
     check::Function
     function AgeFixed()
-        new(age_fixed_pars, age_fixed_haz, age_hazard_check)
+        new(age_fixed_pars, age_fixed_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
@@ -277,9 +295,10 @@ The struct `AgeNbinom` inherits from the abstract type `AgeHaz` (which itself ha
 struct AgeNbinom <: AgeHaz
     pars::Function
     eval::Function
+    func::Function
     check::Function
     function AgeNbinom()
-        new(age_nbinom_pars, age_nbinom_haz, age_hazard_check)
+        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
@@ -310,9 +329,10 @@ The struct `AgeGamma` inherits from the abstract type `AgeHaz` (which itself has
 struct AgeGamma <: AgeHaz
     pars::Function
     eval::Function
+    func::Function
     check::Function
     function AgeGamma()
-        new(age_gamma_pars, age_gamma_haz, age_hazard_check)
+        new(age_gamma_pars, age_gamma_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
@@ -680,22 +700,28 @@ function StepPopMain(pop::Population, pars::Tuple)
                     completed[i] += n
                     n = zero(valtype(pop.data.poptable))
                 else
-                    p = hazard_calc(hazard, q2.key[i], k, theta)
+                    p = hazard.func(hazard, dev, q2.key[i], k, theta)
                     n2 = pop.update(n, p)
                     n -= n2
                     #
-                    if n2 > zero(valtype(pop.data.poptable))
-                        add_key(poptablenext, q2, n2) # Developing / surviving population
+                    if typeof(hazard) <: AgeHaz
+                        if n > zero(valtype(pop.data.poptable))
+                            add_key(poptablenext, q2, n) # Developing / surviving population
+                        end
+                        if n2 > zero(valtype(pop.data.poptable))
+                            add_key(poptabledone, q2, n2) # Completing process
+                            completed[i] += n2
+                        end
+                    else
+                        if n2 > zero(valtype(pop.data.poptable))
+                            add_key(poptablenext, q2, n2) # Developing / surviving population
+                        end
                     end
                     #
                     dev += one(dev)
                 end
                 #
                 if !stay
-                    if n > zero(valtype(pop.data.poptable))
-                        add_key(poptabledone, q2, n) # Remaining population to be left out
-                        completed[i] += n
-                    end
                     break
                 end
             end

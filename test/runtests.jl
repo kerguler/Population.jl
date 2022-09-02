@@ -3,7 +3,9 @@ using Plots
 using Test
 
 @testset "sPop2.jl" begin
-    pop = Population(PopDataSto(), AccErlang())
-    AddPop(pop, 10.0, 0, 0.0)
-    StepPop(pop, 20.0, 5.0, 0.0)
+    pop = Population(PopDataSto())
+    AddProcess(pop, AccErlang())
+    AddPop(pop, 10)
+    pr = (devmn=20.0, devsd=5.0)
+    StepPop(pop, pr)
 end
