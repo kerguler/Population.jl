@@ -56,8 +56,8 @@ The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 function hazard_calc(hazard::HazTypes, d::Number, k::Number, theta::Number)
     h0 = hazard.eval(d - one(d), k, theta)
     h1 = hazard.eval(d, k, theta)
-    # h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
-    h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
+    h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
+    # h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
 end
 
 function age_hazard_check(a::Int64)
@@ -78,7 +78,7 @@ function acc_fixed_pars(pars::T) where {T <: NamedTuple}
 end
 
 function acc_fixed_haz(i::Number, k::Number, theta::Number)
-    Float64(i >= k)
+    Float64(i >= theta)
 end
 
 """
@@ -150,15 +150,13 @@ function acc_erlang_pars(pars::T) where {T <: NamedTuple}
         theta = pars.devmn / k
         m = k*theta
         s = (theta*m)^0.5
-        if verbose
-            @error string("Rounding up k to ", k, " to yield mean=", m, " and sd=", s)
-        end
+        # @error string("Rounding up k to ", k, " to yield mean=", m, " and sd=", s)
     end
     return k, theta, true
 end
 
 function acc_erlang_haz(i::Number, k::Number, theta::Number)
-    Float64(cdf(Poisson(1.0/theta), i))
+    cdf(Poisson(1.0/theta), i)
 end
 
 """
@@ -676,7 +674,6 @@ function StepPopMain(pop::Population, pars::Tuple)
             dev = zero(Int64)
             while n > zero(valtype(pop.data.poptable))
                 q2 = MemberKey(q, pop.steppers, i, dev, k)
-                print(q2,"\n")
                 #
                 if hazard.check(q2.key[i])
                     add_key(poptabledone,q2,n)
@@ -684,7 +681,6 @@ function StepPopMain(pop::Population, pars::Tuple)
                     n = zero(valtype(pop.data.poptable))
                 else
                     p = hazard_calc(hazard, q2.key[i], k, theta)
-                    print(q2.key[i]," ",k," ",theta," ",i," ",dev," ",n," ",p,"\n")
                     n2 = pop.update(n, p)
                     n -= n2
                     #
