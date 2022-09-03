@@ -24,7 +24,7 @@ export AccHaz, AgeHaz, HazTypes,
        AgeConst, AgeCustom,
        PopDataDet, PopDataSto, Population, 
        StepPop, AddPop, GetPop, MemberKey,
-       set_eps, EmptyPop, GetPoptable,
+       set_acc_eps, EmptyPop, GetPoptable,
        AddProcess, AccStepper, AgeStepper,
        StepperTypes, get_stepper
 
@@ -34,7 +34,7 @@ using Random: rand
 const ACCTHR = 1.0
 
 EPS = 14
-function set_eps(eps::Int64)
+function set_acc_eps(eps::Int64)
     global EPS
     EPS = eps == 0 ? 14 : eps
     return EPS
@@ -54,9 +54,9 @@ Hazard Calculation for Accumulative Process
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function acc_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
-    h0 = d == zero(d) ? 0.0 : hazard.eval(d - one(d), k, theta)
-    h1 = hazard.eval(d, k, theta)
+function acc_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+    h0 = d == zero(d) ? 0.0 : heval(d - one(d), k, theta)
+    h1 = heval(d, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
 end
 
@@ -66,9 +66,9 @@ Hazard Calculation for Age-Dependent Process
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function age_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
-    h0 = q == zero(q) ? 0.0 : hazard.eval(q - one(q), k, theta)
-    h1 = hazard.eval(q, k, theta)
+function age_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+    h0 = q == zero(q) ? 0.0 : heval(q - one(q), k, theta)
+    h1 = heval(q, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
 end
 
@@ -76,7 +76,7 @@ end
 Hazard Calculation for Constant-Probability Process
 
 """
-function age_const_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+function age_const_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
     Float64(theta)
 end
 
@@ -742,7 +742,7 @@ function StepPopMain(pop::Population, pars::Tuple)
                     completed[i] += n
                     n = zero(valtype(pop.data.poptable))
                 else
-                    p = hazard.func(hazard, dev, q2.key[i], k, theta, q2.key)
+                    p = hazard.func(hazard.eval, dev, q2.key[i], k, theta, q2.key)
                     n2 = pop.update(n, p)
                     n -= n2
                     #
