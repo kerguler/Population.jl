@@ -20,7 +20,8 @@ module sPop2
 
 export AccHaz, AgeHaz, HazTypes,
        AccFixed, AccPascal, AccErlang,
-       AgeFixed, AgeNbinom, AgeGamma, AgeConst,
+       AgeFixed, AgeNbinom, AgeGamma, 
+       AgeConst, AgeCustom,
        PopDataDet, PopDataSto, Population, 
        StepPop, AddPop, GetPop, MemberKey,
        set_eps, EmptyPop, GetPoptable,
@@ -48,40 +49,42 @@ abstract type AccHaz <: HazTypes end
 abstract type AgeHaz <: HazTypes end
 
 """
-Hazard Calculation for Accumulative Development Process
+Hazard Calculation for Accumulative Process
 
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function acc_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number)
+function acc_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
     h0 = d == zero(d) ? 0.0 : hazard.eval(d - one(d), k, theta)
     h1 = hazard.eval(d, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
-    # h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
 end
 
 """
-Hazard Calculation for Age-Dependent Development Process
+Hazard Calculation for Age-Dependent Process
 
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function age_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number)
+function age_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
     h0 = q == zero(q) ? 0.0 : hazard.eval(q - one(q), k, theta)
     h1 = hazard.eval(q, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
-    # h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
 end
 
 """
-Hazard Calculation for Constant-Probability Development Process
+Hazard Calculation for Constant-Probability Process
 
 """
-function age_const_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number)
+function age_const_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
     Float64(theta)
 end
 
 function age_hazard_check(a::Int64)
+    return false
+end
+
+function age_custom_check(a::Int64)
     return false
 end
 
@@ -245,6 +248,10 @@ function age_custom_pars(pars::T) where {T <: NamedTuple}
     return 1, 1.0, false
 end
 
+function age_custom_haz(i::Number, k::Number, theta::Number)
+    return nothing
+end
+
 """
 Custom Probability Age-Dependent Development Process
 
@@ -263,8 +270,8 @@ struct AgeCustom <: AgeHaz
     eval::Function
     func::Function
     check::Function
-    function AgeCusom()
-        new(age_custom_pars, age_const_haz, age_hazard_calc, age_hazard_check)
+    function AgeCustom(age_custom_calc::Function)
+        new(age_custom_pars, age_custom_haz, age_custom_calc, age_custom_check)
     end
 end
 
@@ -735,7 +742,7 @@ function StepPopMain(pop::Population, pars::Tuple)
                     completed[i] += n
                     n = zero(valtype(pop.data.poptable))
                 else
-                    p = hazard.func(hazard, dev, q2.key[i], k, theta)
+                    p = hazard.func(hazard, dev, q2.key[i], k, theta, q2.key)
                     n2 = pop.update(n, p)
                     n -= n2
                     #
