@@ -20,7 +20,7 @@ module sPop2
 
 export AccHaz, AgeHaz, HazTypes,
        AccFixed, AccPascal, AccErlang,
-       AgeFixed, AgeNbinom, AgeGamma, 
+       AgeFixed, AgeNbinom, AgeGamma, AgeConst,
        PopDataDet, PopDataSto, Population, 
        StepPop, AddPop, GetPop, MemberKey,
        set_eps, EmptyPop, GetPoptable,
@@ -71,6 +71,14 @@ function age_hazard_calc(hazard::HazTypes, d::Number, q::Number, k::Number, thet
     h1 = hazard.eval(q, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
     # h0 == 1.0 ? 0.0 : (1.0 - h1)/(1.0 - h0) # survival
+end
+
+"""
+Hazard Calculation for Constant-Probability Development Process
+
+"""
+function age_const_calc(hazard::HazTypes, d::Number, q::Number, k::Number, theta::Number)
+    Float64(theta)
 end
 
 function age_hazard_check(a::Int64)
@@ -207,7 +215,7 @@ function age_const_pars(pars::T) where {T <: NamedTuple}
 end
 
 function age_const_haz(i::Number, k::Number, theta::Number)
-    Float64(k)
+    Float64(theta)
 end
 
 """
@@ -229,7 +237,34 @@ struct AgeConst <: AgeHaz
     func::Function
     check::Function
     function AgeConst()
-        new(age_const_pars, age_const_haz, age_hazard_calc, age_hazard_check)
+        new(age_const_pars, age_const_haz, age_const_calc, age_hazard_check)
+    end
+end
+
+function age_custom_pars(pars::T) where {T <: NamedTuple}
+    return 1, 1.0, false
+end
+
+"""
+Custom Probability Age-Dependent Development Process
+
+This age-dependent development process employs a custom probability of occurrence per step.
+
+`AgeConst()` returns a struct with fields:
+- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
+- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
+- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
+
+The struct `AgeConst` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
+
+"""
+struct AgeCustom <: AgeHaz
+    pars::Function
+    eval::Function
+    func::Function
+    check::Function
+    function AgeCusom()
+        new(age_custom_pars, age_const_haz, age_hazard_calc, age_hazard_check)
     end
 end
 
