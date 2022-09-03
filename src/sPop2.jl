@@ -18,15 +18,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 module sPop2
 
-export AccHaz, AgeHaz, HazTypes,
+export AccHaz, AgeHaz, CusHaz, HazTypes,
        AccFixed, AccPascal, AccErlang,
        AgeFixed, AgeNbinom, AgeGamma, 
-       AgeConst, AgeCustom,
+       AgeConst, AgeCustom, AgeDummy,
        PopDataDet, PopDataSto, Population, 
        StepPop, AddPop, GetPop, MemberKey,
        set_acc_eps, EmptyPop, GetPoptable,
-       AddProcess, AccStepper, AgeStepper,
-       StepperTypes, get_stepper
+       AddProcess, AccStepper, AgeStepper, CustomStepper,
+       StepperTypes
 
 using Distributions
 using Random: rand
@@ -47,6 +47,7 @@ end
 abstract type HazTypes end
 abstract type AccHaz <: HazTypes end
 abstract type AgeHaz <: HazTypes end
+abstract type CusHaz <: HazTypes end
 
 """
 Hazard Calculation for Accumulative Process
@@ -80,6 +81,10 @@ function age_const_calc(heval::Function, d::Number, q::Number, k::Number, theta:
     Float64(theta)
 end
 
+function age_dummy_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+    Float64(0.0)
+end
+
 function age_hazard_check(a::Int64)
     return false
 end
@@ -90,6 +95,51 @@ end
 
 function acc_hazard_check(d::Float64)
     return d >= ACCTHR
+end
+
+# --------------------------------------------------------------------------------
+# stepper type
+# --------------------------------------------------------------------------------
+
+"""
+Key for population development tables
+
+A struct containing `age` (integer) and development fraction `dev` (float).
+
+"""
+abstract type StepperTypes end
+abstract type AccStep <: StepperTypes end
+abstract type AgeStep <: StepperTypes end
+abstract type CusStep <: StepperTypes end
+
+struct AccStepper <: AccStep
+    step::Float64
+    function AccStepper()
+        new(0.0)
+    end
+    function AccStepper(q::Number, d::Int64, k::Number)
+        new(d == 0 ? q : round(q + Float64(d)/Float64(k), digits=EPS))
+    end
+end
+
+struct AgeStepper <: AgeStep
+    step::Int64
+    function AgeStepper()
+        new(0)
+    end
+    function AgeStepper(q::Number, d::Int64, k::Number)
+        new(q + one(q))
+    end
+end
+
+struct CustomStepper <: CusStep
+    step::Int64
+    function CustomStepper()
+        new(0)
+    end
+    function CustomStepper(q::Number, d::Int64, k::Number)
+        new(q)
+    end
 end
 
 # accumulation types ------------------------------------------------------------
@@ -123,8 +173,9 @@ struct AccFixed <: AccHaz
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AccFixed()
-        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc, acc_hazard_check)
+        new(acc_fixed_pars, acc_fixed_haz, acc_hazard_calc, acc_hazard_check, AccStepper)
     end
 end
 
@@ -162,8 +213,9 @@ struct AccPascal <: AccHaz
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AccPascal()
-        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc, acc_hazard_check)
+        new(acc_pascal_pars, acc_pascal_haz, acc_hazard_calc, acc_hazard_check,AccStepper)
     end
 end
 
@@ -203,8 +255,9 @@ struct AccErlang <: AccHaz
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AccErlang()
-        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc, acc_hazard_check)
+        new(acc_erlang_pars, acc_erlang_haz, acc_hazard_calc, acc_hazard_check, AccStepper)
     end
 end
 
@@ -239,8 +292,9 @@ struct AgeConst <: AgeHaz
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AgeConst()
-        new(age_const_pars, age_const_haz, age_const_calc, age_hazard_check)
+        new(age_const_pars, age_const_haz, age_const_calc, age_hazard_check, AgeStepper)
     end
 end
 
@@ -265,13 +319,28 @@ This age-dependent development process employs a custom probability of occurrenc
 The struct `AgeConst` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
 
 """
-struct AgeCustom <: AgeHaz
+struct AgeCustom <: CusHaz
     pars::Function
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AgeCustom(age_custom_calc::Function)
-        new(age_custom_pars, age_custom_haz, age_custom_calc, age_custom_check)
+        new(age_custom_pars, age_custom_haz, age_custom_calc, age_custom_check, CustomStepper)
+    end
+    function AgeCustom(age_custom_calc::Function, stepper::Type{S}) where {S <: StepperTypes}
+        new(age_custom_pars, age_custom_haz, age_custom_calc, age_custom_check, stepper)
+    end
+end
+
+struct AgeDummy <: CusHaz
+    pars::Function
+    eval::Function
+    func::Function
+    check::Function
+    stepper::Type{S} where {S <: StepperTypes}
+    function AgeDummy()
+        new(age_custom_pars, age_custom_haz, age_dummy_calc, age_custom_check, CustomStepper)
     end
 end
 
@@ -304,8 +373,9 @@ struct AgeFixed <: AgeHaz
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AgeFixed()
-        new(age_fixed_pars, age_fixed_haz, age_hazard_calc, age_hazard_check)
+        new(age_fixed_pars, age_fixed_haz, age_hazard_calc, age_hazard_check, AgeStepper)
     end
 end
 
@@ -339,8 +409,9 @@ struct AgeNbinom <: AgeHaz
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AgeNbinom()
-        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc, age_hazard_check)
+        new(age_nbinom_pars, age_nbinom_haz, age_hazard_calc, age_hazard_check, AgeStepper)
     end
 end
 
@@ -373,8 +444,9 @@ struct AgeGamma <: AgeHaz
     eval::Function
     func::Function
     check::Function
+    stepper::Type{S} where {S <: StepperTypes}
     function AgeGamma()
-        new(age_gamma_pars, age_gamma_haz, age_hazard_calc, age_hazard_check)
+        new(age_gamma_pars, age_gamma_haz, age_hazard_calc, age_hazard_check, AgeStepper)
     end
 end
 
@@ -386,41 +458,6 @@ end
 abstract type PopDataTypes end
 
 # combined age- and acumulated-development Population members -------------------
-
-"""
-Key for population development tables
-
-A struct containing `age` (integer) and development fraction `dev` (float).
-
-"""
-abstract type StepperTypes end
-abstract type AccStep <: StepperTypes end
-abstract type AgeStep <: StepperTypes end
-abstract type CusStep <: StepperTypes end
-
-struct AccStepper <: AccStep
-    step::Float64
-    function AccStepper()
-        new(0.0)
-    end
-    function AccStepper(q::Number, d::Int64, k::Number)
-        new(d == 0 ? q : round(q + Float64(d)/Float64(k), digits=EPS))
-    end
-end
-
-struct AgeStepper <: AgeStep
-    step::Int64
-    function AgeStepper()
-        new(0)
-    end
-    function AgeStepper(q::Number, d::Int64, k::Number)
-        new(q + one(q))
-    end
-end
-
-function get_stepper(h::HazTypes)
-    return typeof(h) <: AgeHaz ? AgeStepper : AccStepper
-end
 
 struct MemberKey
     key::Tuple{Number,Number,Number,Number,Number}
@@ -444,28 +481,17 @@ struct MemberKey
         if n > 5
             throw(ArgumentError("At most 5 processes are allowed"))
         end
-        return new((n>0 ? get_stepper(h[1])().step : -1,
-                    n>1 ? get_stepper(h[2])().step : -1,
-                    n>2 ? get_stepper(h[3])().step : -1,
-                    n>3 ? get_stepper(h[4])().step : -1,
-                    n>4 ? get_stepper(h[5])().step : -1))
+        return new((n>0 ? h[1].stepper().step : -1,
+                    n>1 ? h[2].stepper().step : -1,
+                    n>2 ? h[3].stepper().step : -1,
+                    n>3 ? h[4].stepper().step : -1,
+                    n>4 ? h[5].stepper().step : -1))
     end
-    function MemberKey(f::Array{DataType, 1})
-        n = length(f)
-        if n > 5
-            throw(ArgumentError("At most 5 processes are allowed"))
-        end
-        return new((n>0 ? f[1]().step : -1,
-                    n>1 ? f[2]().step : -1,
-                    n>2 ? f[3]().step : -1,
-                    n>3 ? f[4]().step : -1,
-                    n>4 ? f[5]().step : -1))
-    end
-    function MemberKey(m::MemberKey, f::Array{DataType, 1}, n::Int64, d::Int64, k::Number)
+    function MemberKey(m::MemberKey, h::Array{HazTypes, 1}, n::Int64, d::Int64, k::Number)
         if n > 5 || n < 1
             throw(ArgumentError("At most 5 processes are allowed"))
         end
-        return new(Tuple([n==i ? f[i](m.key[i],d,k).step : m.key[i] for i in 1:5]))
+        return new(Tuple([n==i ? h[i].stepper(m.key[i],d,k).step : m.key[i] for i in 1:5]))
     end
 end
 
@@ -579,10 +605,9 @@ struct Population
     data::PopDataTypes
     update::UpdateTypes
     hazards::Array{HazTypes, 1}
-    steppers::Array{DataType, 1}
     function Population(d::PopDataTypes)
         u::UpdateTypes = typeof(d) <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
-        new(d, u, [], [])
+        new(d, u, [])
     end
 end
 
@@ -592,34 +617,29 @@ Add processes in the order to be executed
 """
 function AddProcess(pop::Population, h1::HazTypes)
     push!(pop.hazards, h1)
-    push!(pop.steppers, get_stepper(h1))
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes)
     for h in (h1, h2)
         push!(pop.hazards, h)
-        push!(pop.steppers, get_stepper(h))
     end
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes)
     for h in (h1, h2, h3)
         push!(pop.hazards, h)
-        push!(pop.steppers, get_stepper(h))
     end
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes)
     for h in (h1, h2, h3, h4)
         push!(pop.hazards, h)
-        push!(pop.steppers, get_stepper(h))
     end
 end
 
 function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes, h5::HazTypes)
     for h in (h1, h2, h3, h4, h5)
         push!(pop.hazards, h)
-        push!(pop.steppers, get_stepper(h))
     end
 end
 
@@ -632,7 +652,7 @@ i.e. the number of times an individual completed the development process.
 
 """
 function AddPop(pop::Population, n::Number)
-    key = MemberKey(pop.steppers)
+    key = MemberKey(pop.hazards)
     add_key(pop.data.poptable, key, n)
 end
 
@@ -719,7 +739,7 @@ function StepPopMain(pop::Population, pars::Tuple)
     #
     poptable = pop.data.poptable
     poptablenext = Dict{keytype(poptable),valtype(poptable)}()
-    poptabledone = Dict{keytype(poptable),valtype(poptable)}()
+    poptabledone = [Dict{keytype(poptable),valtype(poptable)}() for _ in 1:length(pop.hazards)]
     #
     for i in 1:length(pop.hazards)
         hazard = pop.hazards[i]
@@ -735,7 +755,7 @@ function StepPopMain(pop::Population, pars::Tuple)
             #
             dev = zero(Int64)
             while n > zero(valtype(pop.data.poptable))
-                q2 = MemberKey(q, pop.steppers, i, dev, k)
+                q2 = MemberKey(q, pop.hazards, i, dev, k)
                 #
                 if hazard.check(q2.key[i])
                     add_key(poptabledone,q2,n)
@@ -746,12 +766,12 @@ function StepPopMain(pop::Population, pars::Tuple)
                     n2 = pop.update(n, p)
                     n -= n2
                     #
-                    if typeof(hazard) <: AgeHaz
+                    if typeof(hazard) <: AgeHaz || typeof(hazard) <: CusHaz
                         if n > zero(valtype(pop.data.poptable))
                             add_key(poptablenext, q2, n) # Developing / surviving population
                         end
                         if n2 > zero(valtype(pop.data.poptable))
-                            add_key(poptabledone, q2, n2) # Completing process
+                            add_key(poptabledone[i], q2, n2) # Completing process
                             completed[i] += n2
                         end
                     else
