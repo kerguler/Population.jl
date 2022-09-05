@@ -1,5 +1,5 @@
 #=
-sPop2: a dynamically-structured matrix Population model
+sPop2: a dynamically-structured matrix population model
 Copyright (C) 2022 Kamil Erguler <k.erguler@cyi.ac.cy>
 
 This program is free software: you can redistribute it and/or modify
@@ -34,6 +34,10 @@ using Random: rand
 const ACCTHR = 1.0
 
 EPS = 14
+"""
+Set precision on development fraction indicator (for accumulative processes).
+
+"""
 function set_acc_eps(eps::Int64)
     global EPS
     EPS = eps == 0 ? 14 : eps
@@ -50,7 +54,7 @@ abstract type AgeHaz <: HazTypes end
 abstract type CusHaz <: HazTypes end
 
 """
-Hazard Calculation for Accumulative Process
+Hazard calculation for an accumulative process
 
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
@@ -62,7 +66,7 @@ function acc_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta
 end
 
 """
-Hazard Calculation for Age-Dependent Process
+Hazard calculation for an age-dependent process
 
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
@@ -74,25 +78,41 @@ function age_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta
 end
 
 """
-Hazard Calculation for Constant-Probability Process
+Hazard calculation for a constant-probability process
 
 """
 function age_const_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
     Float64(theta)
 end
 
+"""
+Hazard calculation for a dummy process
+
+"""
 function age_dummy_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
     Float64(0.0)
 end
 
+"""
+Exit check for an age-dependent process
+
+"""
 function age_hazard_check(a::Int64)
     return false
 end
 
+"""
+Exit check for a custom-probability process
+
+"""
 function age_custom_check(a::Int64)
     return false
 end
 
+"""
+Exit check for an accumulative process
+
+"""
 function acc_hazard_check(d::Float64)
     return d >= ACCTHR
 end
@@ -104,7 +124,7 @@ end
 """
 Key for population development tables
 
-A struct containing `age` (integer) and development fraction `dev` (float).
+A struct with `step` containing an integer for age or a float for development fraction.
 
 """
 abstract type StepperTypes end
@@ -144,7 +164,10 @@ end
 
 # accumulation types ------------------------------------------------------------
 
-# fixed accumulation
+# --------------------------------------------------------------------------------
+# Accumulative fixed duration
+# --------------------------------------------------------------------------------
+
 function acc_fixed_pars(pars::T) where {T <: NamedTuple}
     k = round(pars.devmn)
     theta = 1.0
@@ -161,10 +184,12 @@ Fixed Duration Accumulative Development Process
 This accumulative development process employs a step function, with discontunity at `devmn`, as the cumulative density function.
 
 `AccFixed()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+    
 The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
 
 """
@@ -179,7 +204,10 @@ struct AccFixed <: AccHaz
     end
 end
 
-# pascal
+# --------------------------------------------------------------------------------
+# Accumulative Pascal
+# --------------------------------------------------------------------------------
+
 function acc_pascal_pars(pars::T) where {T <: NamedTuple}
     theta = pars.devmn / (pars.devsd^2)
     (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Pascal cannot yield mean=$(pars.devmn) and sd=$(pars.devsd)"))
@@ -201,11 +229,13 @@ Pascal Accumulative Development Process
 This Pascal (or negative binomial) development process employs the negative binomial distribution to represent process duration.
 
 `AccPascal()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-    
-The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+        
+The struct `AccPascal` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
 
 """
 struct AccPascal <: AccHaz
@@ -219,7 +249,10 @@ struct AccPascal <: AccHaz
     end
 end
 
-# Erlang
+# --------------------------------------------------------------------------------
+# Accumulative Erlang
+# --------------------------------------------------------------------------------
+
 function acc_erlang_pars(pars::T) where {T <: NamedTuple}
     theta = (pars.devsd^2) / pars.devmn
     k = pars.devmn / theta
@@ -242,12 +275,14 @@ Erlang Accumulative Development Process
 
 The Erlang development process uses the Gamma distribution with an integer shape parameter to represent process duration.
 
-`AccPascal()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AccHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-    
-The struct `AccFixed` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
+`AccErlang()` returns a struct with fields:
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+        
+The struct `AccErlang` inherits from the abstract type `AccHaz` (which itself has supertype `HazTypes`).
 
 """
 struct AccErlang <: AccHaz
@@ -263,7 +298,10 @@ end
 
 # age types ------------------------------------------------------------
 
-# constant age
+# --------------------------------------------------------------------------------
+# Age-dependent constant rate
+# --------------------------------------------------------------------------------
+
 function age_const_pars(pars::T) where {T <: NamedTuple}
     k = 1.0
     theta = min(1.0, max(0.0, pars.prob))
@@ -280,10 +318,12 @@ Constant Probability Age-Dependent Development Process
 This age-dependent development process employs a constant probability of occurrence per step.
 
 `AgeConst()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+    
 The struct `AgeConst` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
 
 """
@@ -298,6 +338,10 @@ struct AgeConst <: AgeHaz
     end
 end
 
+# --------------------------------------------------------------------------------
+# Age-dependent custom rate
+# --------------------------------------------------------------------------------
+
 function age_custom_pars(pars::T) where {T <: NamedTuple}
     return 1, 1.0, false
 end
@@ -311,12 +355,14 @@ Custom Probability Age-Dependent Development Process
 
 This age-dependent development process employs a custom probability of occurrence per step.
 
-`AgeConst()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-
-The struct `AgeConst` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
+`AgeCustom()` returns a struct with fields:
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+    
+The struct `AgeCustom` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
 
 """
 struct AgeCustom <: CusHaz
@@ -333,6 +379,21 @@ struct AgeCustom <: CusHaz
     end
 end
 
+"""
+Dummy Age-Dependent Development Process
+
+This implements an age-dependent dummy process.
+
+`AgeDummy()` returns a struct with fields:
+- `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+- `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+- `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+- `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+- `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+
+The struct `AgeDummy` inherits from the abstract type `CusHaz` (which itself has supertype `HazTypes`).
+
+"""
 struct AgeDummy <: CusHaz
     pars::Function
     eval::Function
@@ -344,7 +405,10 @@ struct AgeDummy <: CusHaz
     end
 end
 
-# fixed age
+# --------------------------------------------------------------------------------
+# Age-dependent fixed duration
+# --------------------------------------------------------------------------------
+
 function age_fixed_pars(pars::T) where {T <: NamedTuple}
     k = round(pars.devmn)
     theta = 1.0
@@ -361,10 +425,12 @@ Fixed Duration Age-Dependent Development Process
 This age-dependent development process employs a step function, with discontunity at `devmn`, as the cumulative density function.
 
 `AgeFixed()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+    
 The struct `AgeFixed` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
 
 """
@@ -379,7 +445,10 @@ struct AgeFixed <: AgeHaz
     end
 end
 
-# negative binomial age
+# --------------------------------------------------------------------------------
+# Age-dependent negative binomial
+# --------------------------------------------------------------------------------
+
 function age_nbinom_pars(pars::T) where {T <: NamedTuple}
     theta = pars.devmn / (pars.devsd^2)
     (theta < 1.0 && theta > 0.0) || throw(ArgumentError("Negative binomial cannot yield mean=$(pars.devmn) and sd=$(pars.devsd)"))
@@ -397,10 +466,12 @@ Negative Binomial Age-Dependent Development Process
 The duration of this age-dependent development process follows a negative binomial distribution.
 
 `AgeNbinom()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+    
 The struct `AgeNbinom` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
 
 """
@@ -415,7 +486,10 @@ struct AgeNbinom <: AgeHaz
     end
 end
 
-# gamma age
+# --------------------------------------------------------------------------------
+# Age-dependent gamma
+# --------------------------------------------------------------------------------
+
 function age_gamma_pars(pars::T) where {T <: NamedTuple}
     theta = (pars.devsd^2) / pars.devmn
     k = pars.devmn / theta
@@ -432,10 +506,12 @@ Gamma Age-Dependent Development Process
 This age-dependent development process follows a gamma distribution.
 
 `AgeGamma()` returns a struct with fields:
-- `pars` takes arguments `devmn` and `devsd` which computes `k`, `theta` (returned as a tuple in that order)
-- `eval` takes arguments `i` and `theta` and returns the cumulative density function evaluated at `i`
-- `func` takes arguments `age`, `dev`, `hazard::AgeHaz`, `k`, and `theta` and returns the hazard evaluated at `dev`
-
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+    
 The struct `AgeGamma` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
 
 """
@@ -452,13 +528,18 @@ end
 
 
 # --------------------------------------------------------------------------------
-# Population data types
+# Combined age- and accumulative-development population members
 # --------------------------------------------------------------------------------
 
-abstract type PopDataTypes end
+"""
+A population member class
 
-# combined age- and acumulated-development Population members -------------------
+A struct containing the state of a group of individuals with the same qualities.
+In current implementation, at most 5 different qualities are allowed in a state.
+The struct can be constructed by passing the process indicator (e.g. age, development indicator, etc.) to its constructor.
+It can also be constructed with a hazard data type or a list of hazards and an instructed change in one of the process counters.
 
+"""
 struct MemberKey
     key::Tuple{Number,Number,Number,Number,Number}
     function MemberKey(n1::Number)
@@ -495,10 +576,16 @@ struct MemberKey
     end
 end
 
+# --------------------------------------------------------------------------------
+# Population data types
+# --------------------------------------------------------------------------------
+
+abstract type PopDataTypes end
+
 """
 Population data for deterministic models
 
-Return a struct inheriting from `PopDataTypes` with 3 fields:
+Return a struct inheriting from `PopDataTypes` with:
 - `poptable`: a `Dict` mapping `Float64` by `MemberKey` keys
 
 """
@@ -512,7 +599,7 @@ end
 """
 Population data for stochastic models
 
-Return a struct inheriting from `PopDataTypes` with 3 fields:
+Return a struct inheriting from `PopDataTypes` with:
 - `poptable`: a `Dict` mapping `Int64` by `MemberKey` keys
 
 """
@@ -540,7 +627,7 @@ end
 """
 Tabulate development table
 
-Return a tuple of two `Dict` objects, the first which indexes counts by development ages and the second by fraction of development completed.
+Return an Array of `Dict` objects, which index individual counts by each process.
 
 """
 function GetPoptable(poptable::Dict{M, T}) where {T<:Number, M<:MemberKey}
@@ -596,9 +683,8 @@ end
 """
 A population
 
-A struct containing a single population. It can be constructed by passing two arguments to its constructor,
-`d` should be either `PopDataSto` or `PopDataDet` and `h` is the hazard type, and should inherit from `AgeHaz` or `AccHaz`,
-for ageing or accumulation based development processes, respectively.
+A struct containing a single population. It can be constructed by passing a population data type to its constructor,
+`d` should be either `PopDataSto` or `PopDataDet` for stochastic or deterministic dynamics, respectively.
 
 """
 struct Population
@@ -612,7 +698,7 @@ struct Population
 end
 
 """
-Add processes in the order to be executed
+Add processes to the Population in the order to be executed.
 
 """
 function AddProcess(pop::Population, h1::HazTypes)
@@ -646,9 +732,9 @@ end
 """
 Add individuals to a population
 
-Add individuals to an existing population. Individuals can be added by either passing the number, age, and development fraction attained, or
-by passing a second `Population` object which will be added to the first. The function also allows a custom development cycle,
-i.e. the number of times an individual completed the development process.
+Add individuals to an existing population. `n` individuals are added to the population with an initialized set of process counters (indicators set to zero).
+`h1..5` are used to supply the indicator value of each counter (used as individual's age or fraction of development attained).
+Individuals can also be added by passing a second `Population` object which will be added to the first.
 
 """
 function AddPop(pop::Population, n::Number)
@@ -722,11 +808,7 @@ end
 # --------------------------------------------------------------------------------
 
 """
-Iterate a population
-
-Update a population over a single time step, `devmn` is the current mean number of time steps until development completes, `devsd` is
-its standard deviation, and `death` is the per-capita mortality probability.
-
+Main step function to be executed by the StepPop wrappers.
 """
 function StepPopMain(pop::Population, pars::Tuple)
     completed = [zero(valtype(pop.data.poptable)) for _ in 1:length(pop.hazards)]
@@ -758,7 +840,7 @@ function StepPopMain(pop::Population, pars::Tuple)
                 q2 = MemberKey(q, pop.hazards, i, dev, k)
                 #
                 if hazard.check(q2.key[i])
-                    add_key(poptabledone,q2,n)
+                    add_key(poptabledone[i],q2,n)
                     completed[i] += n
                     n = zero(valtype(pop.data.poptable))
                 else
@@ -801,6 +883,14 @@ function StepPopMain(pop::Population, pars::Tuple)
     return size, completed, poptabledone    
 end
 
+"""
+Iterate a population
+
+Update a population over a single time step. NamedTuples convey information about each process in the order they are added.
+For age-dependent and accumative processes, `devmn` indicates the current mean development time, and `devsd` its standard deviation.
+For custom or constant-rate processes, `prob` indicates the probability of completing.
+
+"""
 function StepPop(pop::Population, pr1::NamedTuple)
     StepPopMain(pop, (pr1,))
 end
