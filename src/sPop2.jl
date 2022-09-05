@@ -128,11 +128,8 @@ A struct with `step` containing an integer for age or a float for development fr
 
 """
 abstract type StepperTypes end
-abstract type AccStep <: StepperTypes end
-abstract type AgeStep <: StepperTypes end
-abstract type CusStep <: StepperTypes end
 
-struct AccStepper <: AccStep
+struct AccStepper <: StepperTypes
     step::Float64
     function AccStepper()
         new(0.0)
@@ -142,7 +139,7 @@ struct AccStepper <: AccStep
     end
 end
 
-struct AgeStepper <: AgeStep
+struct AgeStepper <: StepperTypes
     step::Int64
     function AgeStepper()
         new(0)
@@ -152,7 +149,7 @@ struct AgeStepper <: AgeStep
     end
 end
 
-struct CustomStepper <: CusStep
+struct CustomStepper <: StepperTypes
     step::Int64
     function CustomStepper()
         new(0)
@@ -541,40 +538,60 @@ It can also be constructed with a hazard data type or a list of hazards and an i
 
 """
 struct MemberKey
-    key::Tuple{Number,Number,Number,Number,Number}
-    function MemberKey(n1::Number)
-        return new((n1,-1,-1,-1,-1))
+    key::Tuple
+    function MemberKey(n::Number...)
+        new(n)
     end
-    function MemberKey(n1::Number,n2::Number)
-        return new((n1,n2,-1,-1,-1))
+    function MemberKey(h::Vector{HazTypes})
+        new(([x.stepper().step for x in h]...,))
     end
-    function MemberKey(n1::Number,n2::Number,n3::Number)
-        return new((n1,n2,n3,-1,-1))
-    end
-    function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number)
-        return new((n1,n2,n3,n4,-1))
-    end
-    function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number,n5::Number)
-        return new((n1,n2,n3,n4,n5))
-    end
-    function MemberKey(h::Array{HazTypes, 1})
-        n = length(h)
-        if n > 5
-            throw(ArgumentError("At most 5 processes are allowed"))
-        end
-        return new((n>0 ? h[1].stepper().step : -1,
-                    n>1 ? h[2].stepper().step : -1,
-                    n>2 ? h[3].stepper().step : -1,
-                    n>3 ? h[4].stepper().step : -1,
-                    n>4 ? h[5].stepper().step : -1))
-    end
-    function MemberKey(m::MemberKey, h::Array{HazTypes, 1}, n::Int64, d::Int64, k::Number)
-        if n > 5 || n < 1
-            throw(ArgumentError("At most 5 processes are allowed"))
-        end
-        return new(Tuple([n==i ? h[i].stepper(m.key[i],d,k).step : m.key[i] for i in 1:5]))
+    function MemberKey(m::MemberKey, h::Vector{HazTypes}, n::Int64, d::Int64, k::Number)
+        return new(Tuple([n==i ? h[i].stepper(m.key[i],d,k).step : m.key[i] for i in 1:lastindex(m.key)]))
     end
 end
+
+# struct MemberKey
+#     key::Tuple{Number,Number,Number,Number,Number}
+#     function MemberKey(n1::Number)
+#         return new((n1,-1,-1,-1,-1))
+#     end
+#     function MemberKey(n1::Number,n2::Number)
+#         return new((n1,n2,-1,-1,-1))
+#     end
+#     function MemberKey(n1::Number,n2::Number,n3::Number)
+#         return new((n1,n2,n3,-1,-1))
+#     end
+#     function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number)
+#         return new((n1,n2,n3,n4,-1))
+#     end
+#     function MemberKey(n1::Number,n2::Number,n3::Number,n4::Number,n5::Number)
+#         return new((n1,n2,n3,n4,n5))
+#     end
+#     function MemberKey(h::Array{HazTypes, 1})
+#         n = length(h)
+#         if n > 5
+#             throw(ArgumentError("At most 5 processes are allowed"))
+#         end
+#         return new((n>0 ? h[1].stepper().step : -1,
+#                     n>1 ? h[2].stepper().step : -1,
+#                     n>2 ? h[3].stepper().step : -1,
+#                     n>3 ? h[4].stepper().step : -1,
+#                     n>4 ? h[5].stepper().step : -1))
+#     end
+#     function MemberKey(m::MemberKey, h::Array{HazTypes, 1}, n::Int64, d::Int64, k::Number)
+#         if n > 5 || n < 1
+#             throw(ArgumentError("At most 5 processes are allowed"))
+#         end
+#         return new(Tuple([n==i ? h[i].stepper(m.key[i],d,k).step : m.key[i] for i in 1:5]))
+#     end
+# end
+
+# struct mem_key1
+#     key::Tuple
+#     function mem_key1(n::Number...)
+#         new(n)
+#     end
+# end
 
 # --------------------------------------------------------------------------------
 # Population data types
@@ -633,7 +650,7 @@ Return an Array of `Dict` objects, which index individual counts by each process
 function GetPoptable(poptable::Dict{M, T}) where {T<:Number, M<:MemberKey}
     r = []
     for (x,n) in poptable
-        for i in 1:5
+        for i in 1:length(x.key)
             if x.key[i] >= 0
                 if length(r)<i; push!(r,Dict()); end
                 if haskey(r[i], x.key[i]); r[i][x.key[i]] += n; else; r[i][x.key[i]] = n; end
@@ -690,44 +707,56 @@ A struct containing a single population. It can be constructed by passing a popu
 struct Population
     data::PopDataTypes
     update::UpdateTypes
-    hazards::Array{HazTypes, 1}
+    hazards::Vector{HazTypes}
     function Population(d::PopDataTypes)
         u::UpdateTypes = typeof(d) <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
-        new(d, u, [])
+        new(d, u, Vector{HazTypes}())
     end
+end
+
+# additional method so we can call `GetPoptable` on the generic pop object
+function GetPoptable(pop::Population)
+    GetPoptable(pop.data.poptable)
 end
 
 """
 Add processes to the Population in the order to be executed.
 
 """
-function AddProcess(pop::Population, h1::HazTypes)
-    push!(pop.hazards, h1)
-end
-
-function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes)
-    for h in (h1, h2)
-        push!(pop.hazards, h)
+function AddProcess(pop::Population, h::HazTypes...)
+    for haz in h
+        push!(pop.hazards, haz)
     end
 end
 
-function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes)
-    for h in (h1, h2, h3)
-        push!(pop.hazards, h)
-    end
-end
 
-function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes)
-    for h in (h1, h2, h3, h4)
-        push!(pop.hazards, h)
-    end
-end
+# function AddProcess(pop::Population, h1::HazTypes)
+#     push!(pop.hazards, h1)
+# end
 
-function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes, h5::HazTypes)
-    for h in (h1, h2, h3, h4, h5)
-        push!(pop.hazards, h)
-    end
-end
+# function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes)
+#     for h in (h1, h2)
+#         push!(pop.hazards, h)
+#     end
+# end
+
+# function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes)
+#     for h in (h1, h2, h3)
+#         push!(pop.hazards, h)
+#     end
+# end
+
+# function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes)
+#     for h in (h1, h2, h3, h4)
+#         push!(pop.hazards, h)
+#     end
+# end
+
+# function AddProcess(pop::Population, h1::HazTypes, h2::HazTypes, h3::HazTypes, h4::HazTypes, h5::HazTypes)
+#     for h in (h1, h2, h3, h4, h5)
+#         push!(pop.hazards, h)
+#     end
+# end
 
 """
 Add individuals to a population
@@ -742,30 +771,41 @@ function AddPop(pop::Population, n::Number)
     add_key(pop.data.poptable, key, n)
 end
 
-function AddPop(pop::Population, n::Number, h1::Number)
-    key = MemberKey(h1)
+function AddPop(pop::Population, n::Number, h::Number...)
+    key = MemberKey(h...)
     add_key(pop.data.poptable, key, n)
 end
 
-function AddPop(pop::Population, n::Number, h1::Number, h2::Number)
-    key = MemberKey(h1,h2)
-    add_key(pop.data.poptable, key, n)
-end
 
-function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number)
-    key = MemberKey(h1,h2,h3)
-    add_key(pop.data.poptable, key, n)
-end
+# function AddPop(pop::Population, n::Number)
+#     key = MemberKey(pop.hazards)
+#     add_key(pop.data.poptable, key, n)
+# end
 
-function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number)
-    key = MemberKey(h1,h2,h3,h4)
-    add_key(pop.data.poptable, key, n)
-end
+# function AddPop(pop::Population, n::Number, h1::Number)
+#     key = MemberKey(h1)
+#     add_key(pop.data.poptable, key, n)
+# end
 
-function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number, h5::Number)
-    key = MemberKey(h1,h2,h3,h4,h5)
-    add_key(pop.data.poptable, key, n)
-end
+# function AddPop(pop::Population, n::Number, h1::Number, h2::Number)
+#     key = MemberKey(h1,h2)
+#     add_key(pop.data.poptable, key, n)
+# end
+
+# function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number)
+#     key = MemberKey(h1,h2,h3)
+#     add_key(pop.data.poptable, key, n)
+# end
+
+# function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number)
+#     key = MemberKey(h1,h2,h3,h4)
+#     add_key(pop.data.poptable, key, n)
+# end
+
+# function AddPop(pop::Population, n::Number, h1::Number, h2::Number, h3::Number, h4::Number, h5::Number)
+#     key = MemberKey(h1,h2,h3,h4,h5)
+#     add_key(pop.data.poptable, key, n)
+# end
 
 function AddPop(popto::Population, popfrom::Population)
     for (q,n) in popfrom.data.poptable
@@ -810,7 +850,112 @@ end
 """
 Main step function to be executed by the StepPop wrappers.
 """
-function StepPopMain(pop::Population, pars::Tuple)
+function StepPopMain(x) end
+
+# function StepPopMain(pop::Population, pars::Tuple)
+#     completed = [zero(valtype(pop.data.poptable)) for _ in 1:length(pop.hazards)]
+#     #
+#     hazpar = []
+#     for i in 1:length(pop.hazards)
+#         k, theta, stay = pop.hazards[i].pars(pars[i])
+#         push!(hazpar, (k=k, theta=theta, stay=stay))
+#     end
+#     #
+#     poptable = pop.data.poptable
+#     poptablenext = Dict{keytype(poptable),valtype(poptable)}()
+#     poptabledone = [Dict{keytype(poptable),valtype(poptable)}() for _ in 1:length(pop.hazards)]
+#     #
+#     for i in 1:length(pop.hazards)
+#         hazard = pop.hazards[i]
+#         k, theta, stay = hazpar[i]
+#         if theta == 0.0 || k == 0
+#             continue
+#         end
+#         #
+#         for (q,n) in poptable
+#             if n == zero(valtype(pop.data.poptable))
+#                 continue
+#             end
+#             #
+#             dev = zero(Int64)
+#             while n > zero(valtype(pop.data.poptable))
+#                 q2 = MemberKey(q, pop.hazards, i, dev, k)
+#                 #
+#                 if hazard.check(q2.key[i])
+#                     add_key(poptabledone[i],q2,n)
+#                     completed[i] += n
+#                     n = zero(valtype(pop.data.poptable))
+#                 else
+#                     p = hazard.func(hazard.eval, dev, q2.key[i], k, theta, q2.key)
+#                     n2 = pop.update(n, p)
+#                     n -= n2
+#                     #
+#                     if typeof(hazard) <: AgeHaz || typeof(hazard) <: CusHaz
+#                         if n > zero(valtype(pop.data.poptable))
+#                             add_key(poptablenext, q2, n) # Developing / surviving population
+#                         end
+#                         if n2 > zero(valtype(pop.data.poptable))
+#                             add_key(poptabledone[i], q2, n2) # Completing process
+#                             completed[i] += n2
+#                         end
+#                     else
+#                         if n2 > zero(valtype(pop.data.poptable))
+#                             add_key(poptablenext, q2, n2) # Developing / surviving population
+#                         end
+#                     end
+#                     #
+#                     dev += one(dev)
+#                 end
+#                 #
+#                 if !stay
+#                     break
+#                 end
+#             end
+#         end
+#         #
+#         poptable = poptablenext
+#         poptablenext = Dict{keytype(poptable),valtype(poptable)}()
+#     end
+#     size = zero(valtype(pop.data.poptable))
+#     empty!(pop.data.poptable)
+#     for (q,n) in poptable
+#         pop.data.poptable[q] = n
+#         size += n
+#     end
+#     return size, completed, poptabledone    
+# end
+
+"""
+Iterate a population
+
+Update a population over a single time step. NamedTuples convey information about each process in the order they are added.
+For age-dependent and accumative processes, `devmn` indicates the current mean development time, and `devsd` its standard deviation.
+For custom or constant-rate processes, `prob` indicates the probability of completing.
+
+"""
+# function StepPop(pop::Population, pr1::NamedTuple)
+#     StepPopMain(pop, (pr1,))
+# end
+
+# function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple)
+#     StepPopMain(pop, (pr1, pr2))
+# end
+
+# function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple)
+#     StepPopMain(pop, (pr1, pr2, pr3))
+# end
+
+# function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple, pr4::NamedTuple)
+#     StepPopMain(pop, (pr1, pr2, pr3, pr4))
+# end
+
+# function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple, pr4::NamedTuple, pr5::NamedTuple)
+#     StepPopMain(pop, (pr1, pr2, pr3, pr4, pr5))
+# end
+
+
+function StepPop(pop::Population, pars::NamedTuple...)
+    @assert length(pars) == length(pop.hazards)
     completed = [zero(valtype(pop.data.poptable)) for _ in 1:length(pop.hazards)]
     #
     hazpar = []
@@ -883,32 +1028,5 @@ function StepPopMain(pop::Population, pars::Tuple)
     return size, completed, poptabledone    
 end
 
-"""
-Iterate a population
-
-Update a population over a single time step. NamedTuples convey information about each process in the order they are added.
-For age-dependent and accumative processes, `devmn` indicates the current mean development time, and `devsd` its standard deviation.
-For custom or constant-rate processes, `prob` indicates the probability of completing.
-
-"""
-function StepPop(pop::Population, pr1::NamedTuple)
-    StepPopMain(pop, (pr1,))
-end
-
-function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple)
-    StepPopMain(pop, (pr1, pr2))
-end
-
-function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple)
-    StepPopMain(pop, (pr1, pr2, pr3))
-end
-
-function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple, pr4::NamedTuple)
-    StepPopMain(pop, (pr1, pr2, pr3, pr4))
-end
-
-function StepPop(pop::Population, pr1::NamedTuple, pr2::NamedTuple, pr3::NamedTuple, pr4::NamedTuple, pr5::NamedTuple)
-    StepPopMain(pop, (pr1, pr2, pr3, pr4, pr5))
-end
 
 end
