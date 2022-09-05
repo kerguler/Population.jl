@@ -1,8 +1,6 @@
 # sPop2.jl
 
-<p align="center">
-<img width="623" height=211" src="../figures/logo_sPop2.jpg"/>
-</p>
+![logo](figures/logo_sPop2.jpg "Climate impacts on vector-borne diseases")
 
 This is the standalone Julia library of the dynamically-structured matrix population model sPop2. This version implements both age-dependent and accumulative processes.
 
@@ -10,8 +8,8 @@ This is the standalone Julia library of the dynamically-structured matrix popula
 
 Just type this in Julia:
 ```julia
-using Pkg
-Pkg.add("sPop2")
+    using Pkg
+    Pkg.add("sPop2")
 ```
 
 ## Using the library
@@ -19,11 +17,11 @@ Pkg.add("sPop2")
 The following creates a pseudo-structured population with 10 individuals and iterates it one step with 0 mortality and an Erlang-distributed development time of 20&pm;5 steps.
 
 ```julia
-pop = Population(PopDataSto())
-AddProcess(pop, AccErlang())
-AddPop(pop, 10)
-pr = (devmn=20.0, devsd=5.0)
-size, completed, poptabledone = StepPop(pop, pr)
+    pop = Population(PopDataSto())
+    AddProcess(pop, AccErlang())
+    AddPop(pop, 10)
+    pr = (devmn=20.0, devsd=5.0)
+    size, completed, poptabledone = StepPop(pop, pr)
 ```
 
 See section [Usage examples](#usage-examples) for further examples.
@@ -35,4 +33,30 @@ See section [Usage examples](#usage-examples) for further examples.
 
 # Usage examples
 
-## Coming soon...
+## A deterministic population with Erlang-distributed accumulative development
+
+```julia
+    using Plots
+    using Distributions
+
+    pop = Population(PopDataDet())
+
+    AddProcess(pop, AccErlang())
+
+    pr1 = (devmn=20.0, devsd=5.0)
+
+    AddPop(pop, 100.0)
+    out = [0 100.0 0.0]
+    xr = 0:50
+    for n in xr[2:end]
+        ret = StepPop(pop, pr1)
+        out = vcat(out, [n ret[1] ret[2]])
+    end
+
+    k, theta, stay = pop.hazards[1].pars(pr1)
+
+    plot(out[:,1], out[:,2], line = :scatter, c="black", ms=8, label="Deterministic")
+    plot!(xr, 100.0*(1.0 .- cdf(Gamma(k,theta),xr)), c="gray", lw=4, label="Expected")
+```
+
+![det_erlang](figures/det_erlang.png "Deterministic - Erlang-distributed")
