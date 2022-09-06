@@ -1,6 +1,6 @@
 # sPop2.jl
 
-![logo](figures/logo_sPop2.jpg "Climate impacts on vector-borne diseases")
+![](figures/logo_sPop2.jpg "Climate impacts on vector-borne diseases")
 
 This is the standalone Julia library of the dynamically-structured matrix population model sPop2. This version implements both age-dependent and accumulative processes.
 
