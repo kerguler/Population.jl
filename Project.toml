@@ -1,11 +1,12 @@
 name = "sPop2"
 uuid = "11b83ad2-e65e-47ba-870b-1ff818f3e30a"
 authors = ["Kamil Erguler <k.erguler@cyi.ac.cy>", "Sean L. Wu <slwu89@berkeley.edu>"]
-version = "1.0.0"
+version = "1.1.0"
 
 [deps]
 CompilerSupportLibraries_jll = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 OpenSpecFun_jll = "efe28fd5-8261-553b-a9e1-b2916fc3738e"

@@ -138,6 +138,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         </ul></li>
         <li><a href="#usage-examples">Usage examples</a>
         <ul>
+        <li><a href="#a-deterministic-ode-model-of-larva-development">A deterministic ODE model of larva development</a></li>
         <li><a href="#a-deterministic-population-with-erlang-distributed-accumulative-development">A deterministic population with Erlang-distributed accumulative development</a></li>
         </ul></li>
         </ul>
@@ -158,38 +159,86 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <p>The following creates a pseudo-structured population with 10 individuals and iterates it one step with 0 mortality and an Erlang-distributed development time of 20±5 steps.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> Population(PopDataSto())</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10</span>)</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    size<span class="op">,</span> completed<span class="op">,</span> poptabledone <span class="op">=</span> StepPop(pop<span class="op">,</span> pr)</span></code></pre></div>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    size<span class="op">,</span> completed<span class="op">,</span> poptabledone <span class="op">=</span> StepPop(pop<span class="op">,</span> pr)</span></code></pre></div>
 <p>See section <a href="#usage-examples">Usage examples</a> for further examples.</p>
 <h2 id="references">References</h2>
 <ul>
-<li>Erguler, K., Mendel, J., Petrić, D.V. et al. A dynamically structured matrix population model for insect life histories observed under variable environmental conditions. Sci Rep 12, 11587 (2022). https://doi.org/10.1038/s41598-022-15806-2</li>
-<li>Erguler K. sPop: Age-structured discrete-time population dynamics model in C, Python, and R [version 3; peer review: 2 approved]. F1000Research 2020, 7:1220 (https://doi.org/10.12688/f1000research.15824.3)</li>
+<li>Erguler, K., Mendel, J., Petrić, D.V. et al. A dynamically structured matrix population model for insect life histories observed under variable environmental conditions. Sci Rep 12, 11587 (2022). <a href="https://doi.org/10.1038/s41598-022-15806-2">link</a></li>
+<li>Erguler K. sPop: Age-structured discrete-time population dynamics model in C, Python, and R [version 3; peer review: 2 approved]. F1000Research 2020, 7:1220. <a href="https://doi.org/10.12688/f1000research.15824.3">link</a></li>
 </ul>
 <h1 id="usage-examples">Usage examples</h1>
-<h2 id="a-deterministic-population-with-erlang-distributed-accumulative-development">A deterministic population with Erlang-distributed accumulative development</h2>
-<div class="sourceCode" id="cb3"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Plots</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Distributions</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> Population(PopDataDet())</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
+<p>Let’s begin with a canonical example. Arguably, the straightforward way to model insect development is to use an ordinary differential equations system with exponentially distributed transition times.</p>
+<h2 id="a-deterministic-ode-model-of-larva-development">A deterministic ODE model of larva development</h2>
+<p>Let’s assume that experimental observations of larva development yielded a round figure of 20 days as average development time. This is usually translated to the differential equations reals as an instantaneous rate of <span class="math inline"><em>α</em> = 1/20</span>.</p>
+<!---
+    using Plots
+    using DifferentialEquations
+
+    function develop!(du,u,p,t)
+        du[1] = -(1.0/20.0)*u[1]
+        du[2] = (1.0/20.0)*u[1]
+    end
+
+    u0 = [100.0; 0.0;]
+    tspan = (0.0, 100.0)
+    prob = ODEProblem(develop!,u0,tspan)
+    sol = solve(prob)
+
+    plot(sol,vars=(0,1),lw=4, label="Larva")
+-->
+<div class="sourceCode" id="cb3"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> DifferentialEquations</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> develop<span class="op">!</span>(du<span class="op">,</span>u<span class="op">,</span>p<span class="op">,</span>t)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        du[<span class="fl">1</span>] <span class="op">=</span> <span class="op">-</span>(<span class="fl">1.0</span><span class="op">/</span><span class="fl">20.0</span>)<span class="op">*</span>u[<span class="fl">1</span>]</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        du[<span class="fl">2</span>] <span class="op">=</span> (<span class="fl">1.0</span><span class="op">/</span><span class="fl">20.0</span>)<span class="op">*</span>u[<span class="fl">1</span>]</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    pr1 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">100.0</span>)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> [<span class="fl">0</span> <span class="fl">100.0</span> <span class="fl">0.0</span>]</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    xr <span class="op">=</span> <span class="fl">0</span><span class="op">:</span><span class="fl">50</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> n <span class="kw">in</span> xr[<span class="fl">2</span><span class="op">:</span><span class="kw">end</span>]</span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> StepPop(pop<span class="op">,</span> pr1)</span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        out <span class="op">=</span> vcat(out<span class="op">,</span> [n ret[<span class="fl">1</span>] ret[<span class="fl">2</span>]])</span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> pop.hazards[<span class="fl">1</span>].pars(pr1)</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    plot(out[<span class="op">:,</span><span class="fl">1</span>]<span class="op">,</span> out[<span class="op">:,</span><span class="fl">2</span>]<span class="op">,</span> line <span class="op">=</span> <span class="op">:</span>scatter<span class="op">,</span> c<span class="op">=</span><span class="st">&quot;black&quot;</span><span class="op">,</span> ms<span class="op">=</span><span class="fl">8</span><span class="op">,</span> label<span class="op">=</span><span class="st">&quot;Deterministic&quot;</span>)</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    plot<span class="op">!</span>(xr<span class="op">,</span> <span class="fl">100.0</span><span class="op">*</span>(<span class="fl">1.0</span> .<span class="op">-</span> cdf(Gamma(k<span class="op">,</span>theta)<span class="op">,</span>xr))<span class="op">,</span> c<span class="op">=</span><span class="st">&quot;gray&quot;</span><span class="op">,</span> lw<span class="op">=</span><span class="fl">4</span><span class="op">,</span> label<span class="op">=</span><span class="st">&quot;Expected&quot;</span>)</span></code></pre></div>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    u0 <span class="op">=</span> [<span class="fl">100.0</span><span class="op">;</span> <span class="fl">0.0</span><span class="op">;</span>]</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    tspan <span class="op">=</span> (<span class="fl">0.0</span><span class="op">,</span> <span class="fl">100.0</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    prob <span class="op">=</span> ODEProblem(develop<span class="op">!,</span>u0<span class="op">,</span>tspan)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    sol <span class="op">=</span> solve(prob)</span></code></pre></div>
+<figure>
+<img src="figures/det_ode.png" title="Deterministic - ODE" alt="det_ode" /><figcaption aria-hidden="true">det_ode</figcaption>
+</figure>
+<p>Expectedly, this implies that larvae begin developing by the time they emerge from eggs, and keep producing pupae at the same constant rate until a negligible number of larvae is left.</p>
+<h2 id="a-deterministic-population-with-erlang-distributed-accumulative-development">A deterministic population with Erlang-distributed accumulative development</h2>
+<p>An alternative representation with a structured population can be constructed using sPop2.</p>
+<!---
+    using Plots
+    using Distributions
+
+    pop = Population(PopDataDet())
+
+    AddProcess(pop, AccErlang())
+
+    pr1 = (devmn=20.0, devsd=5.0)
+
+    AddPop(pop, 100.0)
+    out = [0 100.0 0.0]
+    xr = 0:50
+    for n in xr[2:end]
+        ret = StepPop(pop, pr1)
+        out = vcat(out, [n ret[1] ret[2]])
+    end
+
+    k, theta, stay = pop.hazards[1].pars(pr1)
+
+    plot(out[:,1], out[:,2], line = :scatter, c="black", ms=8, label="Deterministic")
+    plot!(xr, 100.0*(1.0 .- cdf(Gamma(k,theta),xr)), c="gray", lw=4, label="Expected")
+-->
+<div class="sourceCode" id="cb4"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> Population(PopDataDet())</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">100.0</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> [<span class="fl">0</span> <span class="fl">100.0</span> <span class="fl">0.0</span>]</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">50</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        pr1 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> StepPop(pop<span class="op">,</span> pr1)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        out <span class="op">=</span> vcat(out<span class="op">,</span> [n ret[<span class="fl">1</span>] ret[<span class="fl">2</span>]])</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span></code></pre></div>
 <figure>
 <img src="figures/det_erlang.png" title="Deterministic - Erlang-distributed" alt="det_erlang" /><figcaption aria-hidden="true">det_erlang</figcaption>
 </figure>

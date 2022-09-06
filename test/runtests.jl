@@ -1,5 +1,4 @@
 using sPop2
-using Plots
 using Test
 
 @testset "sPop2.jl" begin
