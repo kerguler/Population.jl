@@ -18,10 +18,16 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 
 [compat]
-Distributions = "0"
-PkgTemplates = "0"
-Plots = "1"
-julia = "1"
+DifferentialEquations = "7, 8"
+SpecialFunctions = "2, 3"
+OpenSpecFun_jll = "0, 1"
+Distributions = "0, 1"
+PkgTemplates = "0, 1"
+LaTeXStrings = "1, 2"
+StatsFuns = "1, 2"
+Plots = "1, 2"
+DSP = "0, 1"
+julia = "1, 2"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
