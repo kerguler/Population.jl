@@ -9,7 +9,7 @@ This is the standalone Julia library of the dynamically-structured matrix popula
 Just type this in Julia:
 ```julia
 using Pkg
-Pkg.add("sPop2")
+Pkg.add("SPoP2")
 ```
 
 ## Using the library
@@ -24,7 +24,7 @@ pr = (devmn=20.0, devsd=5.0)
 size, completed, poptabledone = StepPop(pop, pr)
 ```
 
-Please see [docs](https://kerguler.github.io/sPop2.jl/) for further information.
+Please see [docs](https://kerguler.github.io/SPoP2.jl/) for further information.
 
 ## References
 
