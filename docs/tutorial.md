@@ -1,4 +1,4 @@
-# SPoP2.jl
+# sPop2.jl
 
 ![](figures/logo_sPop2.jpg "Climate impacts on vector-borne diseases")
 
@@ -9,7 +9,7 @@ This is the standalone Julia library of the dynamically-structured matrix popula
 Just type this in Julia:
 ```julia
     using Pkg
-    Pkg.add("SPoP2")
+    Pkg.add("sPop2")
 ```
 
 ## Using the library
@@ -140,7 +140,7 @@ plot!(outst[:,1], outst[:,2], line = :scatter, c="blue", ms=8, label="Stochastic
 
 ## Distributions and assumptions
 
-SPoP2 allows for [age-dependent](https://doi.org/10.12688/f1000research.15824.3) and [accumulative](https://doi.org/10.1038/s41598-022-15806-2) development times.
+sPop2 allows for [age-dependent](https://doi.org/10.12688/f1000research.15824.3) and [accumulative](https://doi.org/10.1038/s41598-022-15806-2) development times.
 
 <!---
 N = 10.0
@@ -321,8 +321,8 @@ function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number,
     devmn = 480.0 - (qkey[3] > 4 ? 240.0 : 48.0 * qkey[3])
     devsd = 0.1 * devmn
     pr = (devmn=devmn, devsd=devsd)
-    k, theta, stay = SPoP2.age_gamma_pars(pr)
-    return SPoP2.age_hazard_calc(SPoP2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
+    k, theta, stay = sPop2.age_gamma_pars(pr)
+    return sPop2.age_hazard_calc(sPop2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
 end
 ```
 
@@ -344,11 +344,11 @@ With this function, we override an internal mechanism used by all other processe
 
 Then, we calculate the parameters of the corresponding gamma distribution using the internal function
 ```julia
-    k, theta, stay = SPoP2.age_gamma_pars(pr)
+    k, theta, stay = sPop2.age_gamma_pars(pr)
 ```
 and, with these, we calculate the cumulative probability of daily mortality
 ```julia
-    SPoP2.age_hazard_calc(SPoP2.age_gamma_haz, 0, qkey[1], k, theta, qkey) # qkey[1]: Mortality
+    sPop2.age_hazard_calc(sPop2.age_gamma_haz, 0, qkey[1], k, theta, qkey) # qkey[1]: Mortality
 ```
 
 Overall, the script to model the dynamics is given below.
@@ -358,8 +358,8 @@ function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number,
     devmn = 480.0 - (qkey[3] > 4 ? 240.0 : 48.0 * qkey[3])
     devsd = 0.1 * devmn
     pr = (devmn=devmn, devsd=devsd)
-    k, theta, stay = SPoP2.age_gamma_pars(pr)
-    return SPoP2.age_hazard_calc(SPoP2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
+    k, theta, stay = sPop2.age_gamma_pars(pr)
+    return sPop2.age_hazard_calc(sPop2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
 end
 
 function SimDet()
@@ -389,8 +389,8 @@ plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
         devmn = 480.0 - (qkey[3] > 4 ? 240.0 : 48.0 * qkey[3])
         devsd = 0.1 * devmn
         pr = (devmn=devmn, devsd=devsd)
-        k, theta, stay = SPoP2.age_gamma_pars(pr)
-        return SPoP2.age_hazard_calc(SPoP2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
+        k, theta, stay = sPop2.age_gamma_pars(pr)
+        return sPop2.age_hazard_calc(sPop2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
     end
 
     a = Population(PopDataDet())

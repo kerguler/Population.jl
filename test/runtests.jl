@@ -1,7 +1,7 @@
-using SPoP2
+using sPop2
 using Test
 
-@testset "SPoP2.jl" begin
+@testset "sPop2.jl" begin
     pop = Population(PopDataSto())
     AddProcess(pop, AccErlang())
     AddPop(pop, 10)
