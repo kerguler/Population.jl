@@ -12,6 +12,15 @@ using Pkg
 Pkg.add("sPop2")
 ```
 
+Alternatively, one could clone or download and extract the development version from this GitHub repository, and use the package as follows.
+
+```julia
+    using Pkg
+    Pkg.activate("Absolute path to the sPop2.jl directory")
+
+    using sPop2
+```
+
 ## Using the library
 
 The following creates a pseudo-structured population with 10 individuals and iterates it one step with 0 mortality and an Erlang-distributed development time of 20&pm;5 steps.
