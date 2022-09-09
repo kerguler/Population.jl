@@ -130,7 +130,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         <div class="well toc">
 
         <ul>
-        <li><a href="#spop2.jl">Spop2.jl</a>
+        <li><a href="#spop2.jl">SPoP2.jl</a>
         <ul>
         <li><a href="#installation">Installation</a></li>
         <li><a href="#using-the-library">Using the library</a></li>
@@ -150,13 +150,13 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         </div>
       </div>
             <div class="span9">
-      <h1 id="spop2.jl">Spop2.jl</h1>
+      <h1 id="spop2.jl">SPoP2.jl</h1>
 <p><img src="figures/logo_sPop2.jpg" title="Climate impacts on vector-borne diseases" /></p>
 <p>This is the standalone Julia library of the dynamically-structured matrix population model sPop2. This version implements both age-dependent and accumulative processes.</p>
 <h2 id="installation">Installation</h2>
 <p>Just type this in Julia:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Pkg</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    Pkg.add(<span class="st">&quot;Spop2&quot;</span>)</span></code></pre></div>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    Pkg.add(<span class="st">&quot;SPoP2&quot;</span>)</span></code></pre></div>
 <h2 id="using-the-library">Using the library</h2>
 <p>The following creates a pseudo-structured population with 10 individuals and iterates it one step with 0 mortality and an Erlang-distributed development time of <span class="math inline">20 ± 5</span> steps.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> Population(PopDataSto())</span>
@@ -263,7 +263,7 @@ plot!(outst[:,1], outst[:,2], line = :scatter, c="blue", ms=8, label="Stochastic
 <img src="figures/sto_erlang.png" title="Stochastic - Erlang-distributed" alt="Erlang-distributed duration of larva development" /><figcaption aria-hidden="true">Erlang-distributed duration of larva development</figcaption>
 </figure>
 <h2 id="distributions-and-assumptions">Distributions and assumptions</h2>
-<p>Spop2 allows for <a href="https://doi.org/10.12688/f1000research.15824.3">age-dependent</a> and <a href="https://doi.org/10.1038/s41598-022-15806-2">accumulative</a> development times.</p>
+<p>SPoP2 allows for <a href="https://doi.org/10.12688/f1000research.15824.3">age-dependent</a> and <a href="https://doi.org/10.1038/s41598-022-15806-2">accumulative</a> development times.</p>
 <!---
 N = 10.0
 mu = 20.0
@@ -483,8 +483,8 @@ plot!(xr,[100.0*(1 .- cdf(Geometric(1.0/60.0),x-1)) for x in xr], lw=2, label="G
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>])</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> Spop2.age_gamma_pars(pr)</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> Spop2.age_hazard_calc(Spop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> SPoP2.age_gamma_pars(pr)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> SPoP2.age_hazard_calc(SPoP2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
 <p>With this function, we override an internal mechanism used by all other processes to calculate the probability of exit (need this be due to mortality, development, or something else) from the <em>Population</em>. This generic functional form takes the following parameters.</p>
 <ul>
@@ -499,17 +499,17 @@ plot!(xr,[100.0*(1 .- cdf(Geometric(1.0/60.0),x-1)) for x in xr], lw=2, label="G
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span></code></pre></div>
 <p>Then, we calculate the parameters of the corresponding gamma distribution using the internal function</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> Spop2.age_gamma_pars(pr)</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> SPoP2.age_gamma_pars(pr)</span></code></pre></div>
 <p>and, with these, we calculate the cumulative probability of daily mortality</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>    Spop2.age_hazard_calc(Spop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey) <span class="co"># qkey[1]: Mortality</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>    SPoP2.age_hazard_calc(SPoP2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey) <span class="co"># qkey[1]: Mortality</span></span></code></pre></div>
 <p>Overall, the script to model the dynamics is given below.</p>
 <!---
 function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
     devmn = 480.0 - (qkey[3] > 4 ? 240.0 : 48.0 * qkey[3])
     devsd = 0.1 * devmn
     pr = (devmn=devmn, devsd=devsd)
-    k, theta, stay = Spop2.age_gamma_pars(pr)
-    return Spop2.age_hazard_calc(Spop2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
+    k, theta, stay = SPoP2.age_gamma_pars(pr)
+    return SPoP2.age_hazard_calc(SPoP2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
 end
 
 function SimDet()
@@ -538,8 +538,8 @@ plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>        devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>])</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>        devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>        pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> Spop2.age_gamma_pars(pr)</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> Spop2.age_hazard_calc(Spop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> SPoP2.age_gamma_pars(pr)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> SPoP2.age_hazard_calc(SPoP2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> Population(PopDataDet())</span>
