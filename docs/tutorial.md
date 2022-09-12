@@ -1,4 +1,4 @@
-# sPop2.jl
+# Population.jl
 
 ![](figures/logo_sPop2.jpg "Climate impacts on vector-borne diseases")
 
@@ -9,16 +9,16 @@ This is the standalone Julia library of the dynamically-structured matrix popula
 Just type this in Julia:
 ```julia
     using Pkg
-    Pkg.add("sPop2")
+    Pkg.add("Population")
 ```
 
 Alternatively, one could clone or download and extract the development version from this GitHub repository, and use the package as follows.
 
 ```julia
     using Pkg
-    Pkg.activate("Absolute path to the sPop2.jl directory")
+    Pkg.add("Absolute path to the Population.jl directory")
 
-    using sPop2
+    using Population
 ```
 
 ## Using the library
@@ -26,7 +26,7 @@ Alternatively, one could clone or download and extract the development version f
 The following creates a pseudo-structured population with 10 individuals and iterates it one step with 0 mortality and an Erlang-distributed development time of $20\pm5$ steps.
 
 ```julia
-    pop = Population(PopDataSto())
+    pop = sPop2(PopDataSto())
     AddProcess(pop, AccErlang())
 
     AddPop(pop, 10)
@@ -85,13 +85,13 @@ Expectedly, this implies that larvae begin developing by the time they emerge fr
 
 ## A deterministic population with Erlang-distributed accumulative development
 
-An alternative representation with a structured population can be constructed using sPop2. For this, we need to know not the rate of pupa production, but the average duration of the larva stage and its variation. Let's assume that stage duration follows a [gamma](https://en.wikipedia.org/wiki/Gamma_distribution) distribution ([Erlang](https://en.wikipedia.org/wiki/Erlang_distribution) to be precise), which implies that all individuals race to develop out of the larva stage, while some are faster and even more of them are slower.
+An alternative representation with a structured population can be constructed. For this, we need to know not the rate of pupa production, but the average duration of the larva stage and its variation. Let's assume that stage duration follows a [gamma](https://en.wikipedia.org/wiki/Gamma_distribution) distribution ([Erlang](https://en.wikipedia.org/wiki/Erlang_distribution) to be precise), which implies that all individuals race to develop out of the larva stage, while some are faster and even more of them are slower.
 
 <!---
     using Plots
     using Distributions
 
-    pop = Population(PopDataDet())
+    pop = sPop2(PopDataDet())
 
     AddProcess(pop, AccErlang())
 
@@ -111,7 +111,7 @@ An alternative representation with a structured population can be constructed us
     plot!(xr, 10.0*(1.0 .- cdf(Gamma(k,theta),xr)), c="gray", lw=4, label="Expected")
 -->
 ```julia
-    pop = Population(PopDataDet())
+    pop = sPop2(PopDataDet())
     AddProcess(pop, AccErlang())
 
     AddPop(pop, 10.0)
@@ -133,7 +133,7 @@ With a simple modification, we can simulate how the dynamics vary when each indi
 plot!(outst[:,1], outst[:,2], line = :scatter, c="blue", ms=8, label="Stochastic")
 -->
 ```julia
-    pop = Population(PopDataSto())
+    pop = sPop2(PopDataSto())
     AddProcess(pop, AccErlang())
 
     AddPop(pop, 10)
@@ -149,7 +149,7 @@ plot!(outst[:,1], outst[:,2], line = :scatter, c="blue", ms=8, label="Stochastic
 
 ## Distributions and assumptions
 
-sPop2 allows for [age-dependent](https://doi.org/10.12688/f1000research.15824.3) and [accumulative](https://doi.org/10.1038/s41598-022-15806-2) development times.
+The sPop2 framework allows for [age-dependent](https://doi.org/10.12688/f1000research.15824.3) and [accumulative](https://doi.org/10.1038/s41598-022-15806-2) development times.
 
 <!---
 N = 10.0
@@ -160,7 +160,7 @@ sd = 10.0
 xr = 0:50
 
 function simDet(hazard::HazTypes)
-    pop = Population(PopDataDet())
+    pop = sPop2(PopDataDet())
     AddProcess(pop, hazard)
     AddPop(pop, N)
     retd = [0 N 0.0]
@@ -173,7 +173,7 @@ function simDet(hazard::HazTypes)
 end
 
 function simStoch(hazard::HazTypes)
-    pop = Population(PopDataSto())
+    pop = sPop2(PopDataSto())
     AddProcess(pop, hazard)
     rets = []
     for r in 1:1000
@@ -266,10 +266,10 @@ end
 
 ## Combining multiple processes
 
-Multiple processes can be added to a _Population_ to represent more complex dynamics. For instance, we can represent survival with a daily constant rate and development with an Erlang-distributed accumulative process. The processes are executed in the order they are added to the _Population_.
+Multiple processes can be added to an _sPop2_ to represent more complex dynamics. For instance, we can represent survival with a daily constant rate and development with an Erlang-distributed accumulative process. The processes are executed in the order they are added to the _sPop2_.
 
 <!---
-a = Population(PopDataDet())
+a = sPop2(PopDataDet())
 AddProcess(a, AgeConst(), AccErlang())
 AddPop(a,100.0)
 ret = [0 GetPop(a) 0.0 0.0]
@@ -288,7 +288,7 @@ plot!(xr,[100.0*(1 .- cdf(Geometric(1.0/60.0),x-1)) for x in xr], lw=2, label="G
 -->
 
 ```julia
-a = Population(PopDataDet())
+a = sPop2(PopDataDet())
 AddProcess(a, AgeConst(), AccErlang())
 AddPop(a, 100.0)
 ret = [0 GetPop(a) 0.0 0.0]
@@ -315,15 +315,15 @@ In order to represent the lifetime of this female mosquito, we will employ $3$ p
  * A dummy process to count the number of ovipositioning events
 
 ```julia
-    # Declare a population with deterministic dynamics
-    a = Population(PopDataDet())
+    # Declare an sPop2 population with deterministic dynamics
+    a = sPop2(PopDataDet())
     # Define three processes in this order: Mortality, Gonotropic cycle, Ovipositioning
     AddProcess(a, AgeCustom(custom, AgeStepper), AgeGamma(), AgeDummy())
 ```
 
 The $3^{rd}$ process is a dummy (_AgeDummy_), which does not affect the population or even does not posess a time counter. The $2^{nd}$ process is the regular age-dependent gamma-distributed development process (_AgeGamma_).
 
-The mortality process, on the other hand, is defined with a _custom_ function and uses the _AgeStepper_. We included this stepper in process declaration, because we require that the status indicator be an age counter, _i.e._ the number of steps the _Population_ is iterated is kept in the status indicator (see _qkey_ below). We declare the _custom_ function as the following.
+The mortality process, on the other hand, is defined with a _custom_ function and uses the _AgeStepper_. We included this stepper in process declaration, because we require that the status indicator be an age counter, _i.e._ the number of steps the _sPop2_ is iterated is kept in the status indicator (see _qkey_ below). We declare the _custom_ function as the following.
 
 ```julia
 function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
@@ -335,10 +335,10 @@ function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number,
 end
 ```
 
-With this function, we override an internal mechanism used by all other processes to calculate the probability of exit (need this be due to mortality, development, or something else) from the _Population_. This generic functional form takes the following parameters.
+With this function, we override an internal mechanism used by all other processes to calculate the probability of exit (need this be due to mortality, development, or something else) from the _sPop2_ population. This generic functional form takes the following parameters.
 
  - _heval_ is a function to calculate the cumulative probability density of an exit event. It may use some of the other parameters to do so.
- - _d_ refers to the number of days (more correctly time steps) elapsed in _Population_.
+ - _d_ refers to the number of days (more correctly time steps) elapsed in _sPop2_.
  - _q_ refers to the fraction of development (used in accumulative processes).
  - _k_ and _theta_ are the parameters of the stage duration (development time) distribution.
  - _qkey_ is a tuple of status indicators (age for age-dependent and development fraction for accumulative processes)
@@ -372,7 +372,7 @@ function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number,
 end
 
 function SimDet()
-    a = Population(PopDataDet())
+    a = sPop2(PopDataDet())
     # Mortality, Gonotropic cycle, Ovipositioning
     AddProcess(a, AgeCustom(custom,AgeStepper), AgeGamma(), AgeDummy())
     AddPop(a,1000.0)
@@ -402,7 +402,7 @@ plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
         return sPop2.age_hazard_calc(sPop2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
     end
 
-    a = Population(PopDataDet())
+    a = sPop2(PopDataDet())
     # Mortality, Gonotropic cycle, Ovipositioning
     AddProcess(a, AgeCustom(custom, AgeStepper), AgeGamma(), AgeDummy())
     AddPop(a,1000.0)
@@ -423,11 +423,11 @@ plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
 
 At each step, _StepPop_ returns the following tuple
 
-- Current size off the population.
+- Current size of the population.
 - Number of individuals completing each process in the given order.
 - An array of (status indicators - number of individuals) pairs for each process.
 
-The script adds all individuals completing a gonotrophic cycle (_out[3][2]_) back to the _Population_ one by one. While doing so, their status indicators are updated manually.
+The script adds all individuals completing a gonotrophic cycle (_out[3][2]_) back to the population one by one. While doing so, their status indicators are updated manually.
 
 - _n_ individuals are added
 - Mortality indicator is left unchanged (_q.key[1]_)

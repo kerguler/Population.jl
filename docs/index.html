@@ -130,7 +130,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         <div class="well toc">
 
         <ul>
-        <li><a href="#spop2.jl">sPop2.jl</a>
+        <li><a href="#population.jl">Population.jl</a>
         <ul>
         <li><a href="#installation">Installation</a></li>
         <li><a href="#using-the-library">Using the library</a></li>
@@ -150,21 +150,26 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         </div>
       </div>
             <div class="span9">
-      <h1 id="spop2.jl">sPop2.jl</h1>
+      <h1 id="population.jl">Population.jl</h1>
 <p><img src="figures/logo_sPop2.jpg" title="Climate impacts on vector-borne diseases" /></p>
 <p>This is the standalone Julia library of the dynamically-structured matrix population model sPop2. This version implements both age-dependent and accumulative processes.</p>
 <h2 id="installation">Installation</h2>
 <p>Just type this in Julia:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Pkg</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    Pkg.add(<span class="st">&quot;sPop2&quot;</span>)</span></code></pre></div>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    Pkg.add(<span class="st">&quot;Population&quot;</span>)</span></code></pre></div>
+<p>Alternatively, one could clone or download and extract the development version from this GitHub repository, and use the package as follows.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Pkg</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    Pkg.add(<span class="st">&quot;Absolute path to the Population.jl directory&quot;</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Population</span></code></pre></div>
 <h2 id="using-the-library">Using the library</h2>
 <p>The following creates a pseudo-structured population with 10 individuals and iterates it one step with 0 mortality and an Erlang-distributed development time of <span class="math inline">20 ± 5</span> steps.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> Population(PopDataSto())</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10</span>)</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    size<span class="op">,</span> completed<span class="op">,</span> poptabledone <span class="op">=</span> StepPop(pop<span class="op">,</span> pr)</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> sPop2(PopDataSto())</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    size<span class="op">,</span> completed<span class="op">,</span> poptabledone <span class="op">=</span> StepPop(pop<span class="op">,</span> pr)</span></code></pre></div>
 <p>See section <a href="#usage-examples">Usage examples</a> for further examples.</p>
 <h2 id="references">References</h2>
 <ul>
@@ -191,28 +196,28 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 
     plot(sol,vars=(0,1),lw=4, label="Larva")
 -->
-<div class="sourceCode" id="cb3"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> DifferentialEquations</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> develop<span class="op">!</span>(du<span class="op">,</span>u<span class="op">,</span>p<span class="op">,</span>t)</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        du[<span class="fl">1</span>] <span class="op">=</span> <span class="op">-</span>(<span class="fl">1.0</span><span class="op">/</span><span class="fl">20.0</span>)<span class="op">*</span>u[<span class="fl">1</span>]</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        du[<span class="fl">2</span>] <span class="op">=</span> (<span class="fl">1.0</span><span class="op">/</span><span class="fl">20.0</span>)<span class="op">*</span>u[<span class="fl">1</span>]</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    u0 <span class="op">=</span> [<span class="fl">100.0</span><span class="op">;</span> <span class="fl">0.0</span><span class="op">;</span>]</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    tspan <span class="op">=</span> (<span class="fl">0.0</span><span class="op">,</span> <span class="fl">100.0</span>)</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    prob <span class="op">=</span> ODEProblem(develop<span class="op">!,</span>u0<span class="op">,</span>tspan)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    sol <span class="op">=</span> solve(prob)</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> DifferentialEquations</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> develop<span class="op">!</span>(du<span class="op">,</span>u<span class="op">,</span>p<span class="op">,</span>t)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        du[<span class="fl">1</span>] <span class="op">=</span> <span class="op">-</span>(<span class="fl">1.0</span><span class="op">/</span><span class="fl">20.0</span>)<span class="op">*</span>u[<span class="fl">1</span>]</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        du[<span class="fl">2</span>] <span class="op">=</span> (<span class="fl">1.0</span><span class="op">/</span><span class="fl">20.0</span>)<span class="op">*</span>u[<span class="fl">1</span>]</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    u0 <span class="op">=</span> [<span class="fl">100.0</span><span class="op">;</span> <span class="fl">0.0</span><span class="op">;</span>]</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    tspan <span class="op">=</span> (<span class="fl">0.0</span><span class="op">,</span> <span class="fl">100.0</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    prob <span class="op">=</span> ODEProblem(develop<span class="op">!,</span>u0<span class="op">,</span>tspan)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    sol <span class="op">=</span> solve(prob)</span></code></pre></div>
 <figure>
 <img src="figures/det_ode.png" title="Deterministic - ODE" alt="Larva development modelled using an ODE" /><figcaption aria-hidden="true">Larva development modelled using an ODE</figcaption>
 </figure>
 <p>Expectedly, this implies that larvae begin developing by the time they emerge from eggs, and keep producing pupae at the same constant rate until a negligible number of larvae is left.</p>
 <h2 id="a-deterministic-population-with-erlang-distributed-accumulative-development">A deterministic population with Erlang-distributed accumulative development</h2>
-<p>An alternative representation with a structured population can be constructed using sPop2. For this, we need to know not the rate of pupa production, but the average duration of the larva stage and its variation. Let’s assume that stage duration follows a <a href="https://en.wikipedia.org/wiki/Gamma_distribution">gamma</a> distribution (<a href="https://en.wikipedia.org/wiki/Erlang_distribution">Erlang</a> to be precise), which implies that all individuals race to develop out of the larva stage, while some are faster and even more of them are slower.</p>
+<p>An alternative representation with a structured population can be constructed. For this, we need to know not the rate of pupa production, but the average duration of the larva stage and its variation. Let’s assume that stage duration follows a <a href="https://en.wikipedia.org/wiki/Gamma_distribution">gamma</a> distribution (<a href="https://en.wikipedia.org/wiki/Erlang_distribution">Erlang</a> to be precise), which implies that all individuals race to develop out of the larva stage, while some are faster and even more of them are slower.</p>
 <!---
     using Plots
     using Distributions
 
-    pop = Population(PopDataDet())
+    pop = sPop2(PopDataDet())
 
     AddProcess(pop, AccErlang())
 
@@ -231,16 +236,16 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
     plot(out[:,1], out[:,2], line = :scatter, c="black", ms=8, label="Deterministic")
     plot!(xr, 10.0*(1.0 .- cdf(Gamma(k,theta),xr)), c="gray", lw=4, label="Expected")
 -->
-<div class="sourceCode" id="cb4"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> Population(PopDataDet())</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10.0</span>)</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> [<span class="fl">0</span> <span class="fl">10.0</span> <span class="fl">0.0</span>]</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">50</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        pr1 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> StepPop(pop<span class="op">,</span> pr1)</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        out <span class="op">=</span> vcat(out<span class="op">,</span> [n ret[<span class="fl">1</span>] ret[<span class="fl">2</span>]])</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> sPop2(PopDataDet())</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10.0</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> [<span class="fl">0</span> <span class="fl">10.0</span> <span class="fl">0.0</span>]</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">50</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        pr1 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> StepPop(pop<span class="op">,</span> pr1)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        out <span class="op">=</span> vcat(out<span class="op">,</span> [n ret[<span class="fl">1</span>] ret[<span class="fl">2</span>]])</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span></code></pre></div>
 <figure>
 <img src="figures/det_erlang.png" title="Deterministic - Erlang-distributed" alt="Erlang-distributed duration of larva development" /><figcaption aria-hidden="true">Erlang-distributed duration of larva development</figcaption>
 </figure>
@@ -249,21 +254,21 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <!---
 plot!(outst[:,1], outst[:,2], line = :scatter, c="blue", ms=8, label="Stochastic")
 -->
-<div class="sourceCode" id="cb5"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> Population(PopDataSto())</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10</span>)</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    outst <span class="op">=</span> [<span class="fl">0</span> <span class="fl">10</span> <span class="fl">0.0</span>]</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">50</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        pr1 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> StepPop(pop<span class="op">,</span> pr1)</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        outst <span class="op">=</span> vcat(outst<span class="op">,</span> [n ret[<span class="fl">1</span>] ret[<span class="fl">2</span>]])</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>    pop <span class="op">=</span> sPop2(PopDataSto())</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    AddProcess(pop<span class="op">,</span> AccErlang())</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    AddPop(pop<span class="op">,</span> <span class="fl">10</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    outst <span class="op">=</span> [<span class="fl">0</span> <span class="fl">10</span> <span class="fl">0.0</span>]</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">50</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        pr1 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">20.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> StepPop(pop<span class="op">,</span> pr1)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        outst <span class="op">=</span> vcat(outst<span class="op">,</span> [n ret[<span class="fl">1</span>] ret[<span class="fl">2</span>]])</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span></code></pre></div>
 <figure>
 <img src="figures/sto_erlang.png" title="Stochastic - Erlang-distributed" alt="Erlang-distributed duration of larva development" /><figcaption aria-hidden="true">Erlang-distributed duration of larva development</figcaption>
 </figure>
 <h2 id="distributions-and-assumptions">Distributions and assumptions</h2>
-<p>sPop2 allows for <a href="https://doi.org/10.12688/f1000research.15824.3">age-dependent</a> and <a href="https://doi.org/10.1038/s41598-022-15806-2">accumulative</a> development times.</p>
+<p>The sPop2 framework allows for <a href="https://doi.org/10.12688/f1000research.15824.3">age-dependent</a> and <a href="https://doi.org/10.1038/s41598-022-15806-2">accumulative</a> development times.</p>
 <!---
 N = 10.0
 mu = 20.0
@@ -273,7 +278,7 @@ sd = 10.0
 xr = 0:50
 
 function simDet(hazard::HazTypes)
-    pop = Population(PopDataDet())
+    pop = sPop2(PopDataDet())
     AddProcess(pop, hazard)
     AddPop(pop, N)
     retd = [0 N 0.0]
@@ -286,7 +291,7 @@ function simDet(hazard::HazTypes)
 end
 
 function simStoch(hazard::HazTypes)
-    pop = Population(PopDataSto())
+    pop = sPop2(PopDataSto())
     AddProcess(pop, hazard)
     rets = []
     for r in 1:1000
@@ -432,9 +437,9 @@ end
 </tbody>
 </table>
 <h2 id="combining-multiple-processes">Combining multiple processes</h2>
-<p>Multiple processes can be added to a <em>Population</em> to represent more complex dynamics. For instance, we can represent survival with a daily constant rate and development with an Erlang-distributed accumulative process. The processes are executed in the order they are added to the <em>Population</em>.</p>
+<p>Multiple processes can be added to an <em>sPop2</em> to represent more complex dynamics. For instance, we can represent survival with a daily constant rate and development with an Erlang-distributed accumulative process. The processes are executed in the order they are added to the <em>sPop2</em>.</p>
 <!---
-a = Population(PopDataDet())
+a = sPop2(PopDataDet())
 AddProcess(a, AgeConst(), AccErlang())
 AddPop(a,100.0)
 ret = [0 GetPop(a) 0.0 0.0]
@@ -451,16 +456,16 @@ plot!(ret[:,1],cumsum(ret[:,3]),lw=4,label="Dead")
 plot!(ret[:,1],cumsum(ret[:,4]),lw=4,label="Developed")
 plot!(xr,[100.0*(1 .- cdf(Geometric(1.0/60.0),x-1)) for x in xr], lw=2, label="Geometric dist.")
 -->
-<div class="sourceCode" id="cb6"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> Population(PopDataDet())</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>AddProcess(a<span class="op">,</span> AgeConst()<span class="op">,</span> AccErlang())</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>AddPop(a<span class="op">,</span> <span class="fl">100.0</span>)</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>ret <span class="op">=</span> [<span class="fl">0</span> GetPop(a) <span class="fl">0.0</span> <span class="fl">0.0</span>]</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">for</span> i <span class="kw">in</span> <span class="fl">0</span><span class="op">:</span><span class="fl">100</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    pr1 <span class="op">=</span> (prob<span class="op">=</span><span class="fl">1.0</span><span class="op">/</span><span class="fl">60.0</span><span class="op">,</span>)</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    pr2 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">30.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> StepPop(a<span class="op">,</span> pr1<span class="op">,</span> pr2)</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    ret <span class="op">=</span> vcat(ret<span class="op">,</span> [i<span class="op">+</span><span class="fl">1</span> out[<span class="fl">1</span>] out[<span class="fl">2</span>][<span class="fl">1</span>] out[<span class="fl">2</span>][<span class="fl">2</span>]])</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> sPop2(PopDataDet())</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>AddProcess(a<span class="op">,</span> AgeConst()<span class="op">,</span> AccErlang())</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>AddPop(a<span class="op">,</span> <span class="fl">100.0</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>ret <span class="op">=</span> [<span class="fl">0</span> GetPop(a) <span class="fl">0.0</span> <span class="fl">0.0</span>]</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">for</span> i <span class="kw">in</span> <span class="fl">0</span><span class="op">:</span><span class="fl">100</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    pr1 <span class="op">=</span> (prob<span class="op">=</span><span class="fl">1.0</span><span class="op">/</span><span class="fl">60.0</span><span class="op">,</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    pr2 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">30.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> StepPop(a<span class="op">,</span> pr1<span class="op">,</span> pr2)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    ret <span class="op">=</span> vcat(ret<span class="op">,</span> [i<span class="op">+</span><span class="fl">1</span> out[<span class="fl">1</span>] out[<span class="fl">2</span>][<span class="fl">1</span>] out[<span class="fl">2</span>][<span class="fl">2</span>]])</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
 <p>The above instruction represent a life stage with <span class="math inline">0.017</span> daily mortality and <span class="math inline">30 ± 5</span> days of development time.</p>
 <figure>
 <img src="figures/multiple_mortality_development.png" alt="Mortality and development" /><figcaption aria-hidden="true">Mortality and development</figcaption>
@@ -473,35 +478,35 @@ plot!(xr,[100.0*(1 .- cdf(Geometric(1.0/60.0),x-1)) for x in xr], lw=2, label="G
 <li>An age-dependent gamma-distributed egg development process</li>
 <li>A dummy process to count the number of ovipositioning events</li>
 </ul>
-<div class="sourceCode" id="cb7"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Declare a population with deterministic dynamics</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> Population(PopDataDet())</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define three processes in this order: Mortality, Gonotropic cycle, Ovipositioning</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    AddProcess(a<span class="op">,</span> AgeCustom(custom<span class="op">,</span> AgeStepper)<span class="op">,</span> AgeGamma()<span class="op">,</span> AgeDummy())</span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Declare an sPop2 population with deterministic dynamics</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> sPop2(PopDataDet())</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define three processes in this order: Mortality, Gonotropic cycle, Ovipositioning</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    AddProcess(a<span class="op">,</span> AgeCustom(custom<span class="op">,</span> AgeStepper)<span class="op">,</span> AgeGamma()<span class="op">,</span> AgeDummy())</span></code></pre></div>
 <p>The <span class="math inline">3<sup><em>r</em><em>d</em></sup></span> process is a dummy (<em>AgeDummy</em>), which does not affect the population or even does not posess a time counter. The <span class="math inline">2<sup><em>n</em><em>d</em></sup></span> process is the regular age-dependent gamma-distributed development process (<em>AgeGamma</em>).</p>
-<p>The mortality process, on the other hand, is defined with a <em>custom</em> function and uses the <em>AgeStepper</em>. We included this stepper in process declaration, because we require that the status indicator be an age counter, <em>i.e.</em> the number of steps the <em>Population</em> is iterated is kept in the status indicator (see <em>qkey</em> below). We declare the <em>custom</em> function as the following.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> custom(heval<span class="op">::</span><span class="dt">Function</span><span class="op">,</span> d<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> q<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> k<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> theta<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> qkey<span class="op">::</span><span class="dt">Tuple</span>)</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>])</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> sPop2.age_gamma_pars(pr)</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> sPop2.age_hazard_calc(sPop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
-<p>With this function, we override an internal mechanism used by all other processes to calculate the probability of exit (need this be due to mortality, development, or something else) from the <em>Population</em>. This generic functional form takes the following parameters.</p>
+<p>The mortality process, on the other hand, is defined with a <em>custom</em> function and uses the <em>AgeStepper</em>. We included this stepper in process declaration, because we require that the status indicator be an age counter, <em>i.e.</em> the number of steps the <em>sPop2</em> is iterated is kept in the status indicator (see <em>qkey</em> below). We declare the <em>custom</em> function as the following.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> custom(heval<span class="op">::</span><span class="dt">Function</span><span class="op">,</span> d<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> q<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> k<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> theta<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> qkey<span class="op">::</span><span class="dt">Tuple</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>])</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> sPop2.age_gamma_pars(pr)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> sPop2.age_hazard_calc(sPop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<p>With this function, we override an internal mechanism used by all other processes to calculate the probability of exit (need this be due to mortality, development, or something else) from the <em>sPop2</em> population. This generic functional form takes the following parameters.</p>
 <ul>
 <li><em>heval</em> is a function to calculate the cumulative probability density of an exit event. It may use some of the other parameters to do so.</li>
-<li><em>d</em> refers to the number of days (more correctly time steps) elapsed in <em>Population</em>.</li>
+<li><em>d</em> refers to the number of days (more correctly time steps) elapsed in <em>sPop2</em>.</li>
 <li><em>q</em> refers to the fraction of development (used in accumulative processes).</li>
 <li><em>k</em> and <em>theta</em> are the parameters of the stage duration (development time) distribution.</li>
 <li><em>qkey</em> is a tuple of status indicators (age for age-dependent and development fraction for accumulative processes)</li>
 </ul>
 <p>Of all these, we use the status indicators to calculate the mean and standard deviation of mortality based on the third (<em>dummy</em>) process.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>    devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>]) <span class="co"># qkey[3]: Ovipositioning</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>    devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>]) <span class="co"># qkey[3]: Ovipositioning</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span></code></pre></div>
 <p>Then, we calculate the parameters of the corresponding gamma distribution using the internal function</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> sPop2.age_gamma_pars(pr)</span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>    k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> sPop2.age_gamma_pars(pr)</span></code></pre></div>
 <p>and, with these, we calculate the cumulative probability of daily mortality</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>    sPop2.age_hazard_calc(sPop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey) <span class="co"># qkey[1]: Mortality</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>    sPop2.age_hazard_calc(sPop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey) <span class="co"># qkey[1]: Mortality</span></span></code></pre></div>
 <p>Overall, the script to model the dynamics is given below.</p>
 <!---
 function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
@@ -513,7 +518,7 @@ function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number,
 end
 
 function SimDet()
-    a = Population(PopDataDet())
+    a = sPop2(PopDataDet())
     # Mortality, Gonotropic cycle, Ovipositioning
     AddProcess(a, AgeCustom(custom,AgeStepper), AgeGamma(), AgeDummy())
     AddPop(a,1000.0)
@@ -534,37 +539,37 @@ retd = SimDet()
 
 plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
 -->
-<div class="sourceCode" id="cb12"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> custom(heval<span class="op">::</span><span class="dt">Function</span><span class="op">,</span> d<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> q<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> k<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> theta<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> qkey<span class="op">::</span><span class="dt">Tuple</span>)</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>        devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>])</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>        devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>        pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> sPop2.age_gamma_pars(pr)</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> sPop2.age_hazard_calc(sPop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> Population(PopDataDet())</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Mortality, Gonotropic cycle, Ovipositioning</span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    AddProcess(a<span class="op">,</span> AgeCustom(custom<span class="op">,</span> AgeStepper)<span class="op">,</span> AgeGamma()<span class="op">,</span> AgeDummy())</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    AddPop(a<span class="op">,</span><span class="fl">1000.0</span>)</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    ret <span class="op">=</span> [<span class="fl">0</span> <span class="fl">0.0</span>]</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> i <span class="kw">in</span> <span class="fl">0</span><span class="op">:</span><span class="fl">480</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        pr1 <span class="op">=</span> <span class="dt">NamedTuple</span>{}()</span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        pr2 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">50.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">10.0</span>)</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        out <span class="op">=</span> StepPop(a<span class="op">,</span> pr1<span class="op">,</span> pr2<span class="op">,</span> pr1)</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>        <span class="kw">for</span> (q<span class="op">,</span>n) <span class="kw">in</span> out[<span class="fl">3</span>][<span class="fl">2</span>]</span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Please note that this step is essential!</span></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>            AddPop(a<span class="op">,</span> n<span class="op">,</span> q.key[<span class="fl">1</span>]<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> q.key[<span class="fl">3</span>]<span class="op">+</span>one(q.key[<span class="fl">3</span>]))</span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>        <span class="kw">end</span></span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> vcat(ret<span class="op">,</span> [i<span class="op">+</span><span class="fl">1</span> out[<span class="fl">2</span>][<span class="fl">2</span>]])</span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> ret</span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> custom(heval<span class="op">::</span><span class="dt">Function</span><span class="op">,</span> d<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> q<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> k<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> theta<span class="op">::</span><span class="dt">Number</span><span class="op">,</span> qkey<span class="op">::</span><span class="dt">Tuple</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>        devmn <span class="op">=</span> <span class="fl">480.0</span> <span class="op">-</span> (qkey[<span class="fl">3</span>] <span class="op">&gt;</span> <span class="fl">4</span> ? <span class="fl">240.0</span> <span class="op">:</span> <span class="fl">48.0</span> <span class="op">*</span> qkey[<span class="fl">3</span>])</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>        devsd <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> devmn</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>        pr <span class="op">=</span> (devmn<span class="op">=</span>devmn<span class="op">,</span> devsd<span class="op">=</span>devsd)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        k<span class="op">,</span> theta<span class="op">,</span> stay <span class="op">=</span> sPop2.age_gamma_pars(pr)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> sPop2.age_hazard_calc(sPop2.age_gamma_haz<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> qkey[<span class="fl">1</span>]<span class="op">,</span> k<span class="op">,</span> theta<span class="op">,</span> qkey)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> sPop2(PopDataDet())</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Mortality, Gonotropic cycle, Ovipositioning</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    AddProcess(a<span class="op">,</span> AgeCustom(custom<span class="op">,</span> AgeStepper)<span class="op">,</span> AgeGamma()<span class="op">,</span> AgeDummy())</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    AddPop(a<span class="op">,</span><span class="fl">1000.0</span>)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    ret <span class="op">=</span> [<span class="fl">0</span> <span class="fl">0.0</span>]</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">for</span> i <span class="kw">in</span> <span class="fl">0</span><span class="op">:</span><span class="fl">480</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        pr1 <span class="op">=</span> <span class="dt">NamedTuple</span>{}()</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        pr2 <span class="op">=</span> (devmn<span class="op">=</span><span class="fl">50.0</span><span class="op">,</span> devsd<span class="op">=</span><span class="fl">10.0</span>)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        out <span class="op">=</span> StepPop(a<span class="op">,</span> pr1<span class="op">,</span> pr2<span class="op">,</span> pr1)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>        <span class="kw">for</span> (q<span class="op">,</span>n) <span class="kw">in</span> out[<span class="fl">3</span>][<span class="fl">2</span>]</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Please note that this step is essential!</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>            AddPop(a<span class="op">,</span> n<span class="op">,</span> q.key[<span class="fl">1</span>]<span class="op">,</span> <span class="fl">0</span><span class="op">,</span> q.key[<span class="fl">3</span>]<span class="op">+</span>one(q.key[<span class="fl">3</span>]))</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        <span class="kw">end</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        ret <span class="op">=</span> vcat(ret<span class="op">,</span> [i<span class="op">+</span><span class="fl">1</span> out[<span class="fl">2</span>][<span class="fl">2</span>]])</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> ret</span></code></pre></div>
 <p>At each step, <em>StepPop</em> returns the following tuple</p>
 <ul>
-<li>Current size off the population.</li>
+<li>Current size of the population.</li>
 <li>Number of individuals completing each process in the given order.</li>
 <li>An array of (status indicators - number of individuals) pairs for each process.</li>
 </ul>
-<p>The script adds all individuals completing a gonotrophic cycle (<em>out[3][2]</em>) back to the <em>Population</em> one by one. While doing so, their status indicators are updated manually.</p>
+<p>The script adds all individuals completing a gonotrophic cycle (<em>out[3][2]</em>) back to the population one by one. While doing so, their status indicators are updated manually.</p>
 <ul>
 <li><em>n</em> individuals are added</li>
 <li>Mortality indicator is left unchanged (<em>q.key[1]</em>)</li>

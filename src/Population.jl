@@ -16,13 +16,13 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 =#
 
-module sPop2
+module Population
 
 export AccHaz, AgeHaz, CusHaz, HazTypes,
        AccFixed, AccPascal, AccErlang,
        AgeFixed, AgeNbinom, AgeGamma, 
        AgeConst, AgeCustom, AgeDummy,
-       PopDataDet, PopDataSto, Population, 
+       PopDataDet, PopDataSto, sPop2, 
        StepPop, AddPop, GetPop, MemberKey,
        set_acc_eps, EmptyPop, GetPoptable,
        AddProcess, AccStepper, AgeStepper, CustomStepper,
@@ -662,18 +662,18 @@ A struct containing a single population. It can be constructed by passing a popu
 `d` should be either `PopDataSto` or `PopDataDet` for stochastic or deterministic dynamics, respectively.
 
 """
-struct Population
+struct sPop2
     data::PopDataTypes
     update::UpdateTypes
     hazards::Vector{HazTypes}
-    function Population(d::PopDataTypes)
+    function sPop2(d::PopDataTypes)
         u::UpdateTypes = typeof(d) <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
         new(d, u, Vector{HazTypes}())
     end
 end
 
 # additional method so we can call `GetPoptable` on the generic pop object
-function GetPoptable(pop::Population)
+function GetPoptable(pop::sPop2)
     GetPoptable(pop.data.poptable)
 end
 
@@ -681,7 +681,7 @@ end
 Add processes to the Population in the order to be executed.
 
 """
-function AddProcess(pop::Population, h::HazTypes...)
+function AddProcess(pop::sPop2, h::HazTypes...)
     for haz in h
         push!(pop.hazards, haz)
     end
@@ -695,17 +695,17 @@ Add individuals to an existing population. `n` individuals are added to the popu
 Individuals can also be added by passing a second `Population` object which will be added to the first.
 
 """
-function AddPop(pop::Population, n::Number)
+function AddPop(pop::sPop2, n::Number)
     key = MemberKey(pop.hazards)
     add_key(pop.data.poptable, key, n)
 end
 
-function AddPop(pop::Population, n::Number, h::Number...)
+function AddPop(pop::sPop2, n::Number, h::Number...)
     key = MemberKey(h...)
     add_key(pop.data.poptable, key, n)
 end
 
-function AddPop(popto::Population, popfrom::Population)
+function AddPop(popto::sPop2, popfrom::sPop2)
     for (q,n) in popfrom.data.poptable
         add_key(popto.data.poptable, q, n)
     end
@@ -717,7 +717,7 @@ Get size of a population
 Return the total number of individuals in this population.
 
 """
-function GetPop(pop::Population)
+function GetPop(pop::sPop2)
     size = zero(valtype(pop.data.poptable))
     for n in values(pop.data.poptable)
         size += n
@@ -735,7 +735,7 @@ Empty a population
 Remove all individuals from this population.
 
 """
-function EmptyPop(pop::Population)
+function EmptyPop(pop::sPop2)
     empty!(pop.data.poptable)
     #
     return true
@@ -753,7 +753,7 @@ For age-dependent and accumative processes, `devmn` indicates the current mean d
 For custom or constant-rate processes, `prob` indicates the probability of completing.
 
 """
-function StepPop(pop::Population, pars::NamedTuple...)
+function StepPop(pop::sPop2, pars::NamedTuple...)
     @assert length(pars) == length(pop.hazards)
     completed = [zero(valtype(pop.data.poptable)) for _ in 1:length(pop.hazards)]
     #
