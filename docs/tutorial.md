@@ -256,6 +256,7 @@ end
 | AgeConst   | prob | Constant-rate age-dependent process   |
 | AgeGamma   | devmn, devsd | Gamma-distributed age-dependent process   |
 | AgeNbinom   | devmn, devsd | Negative binomial-distributed age-dependent process   |
+| AgeCustom | User-defined hazard function, Stepper | Age-dependent or accumulative stepping with a user-defined hazard function |
 
 | Age-dependent | Accumulative |
 | :---        |    ---: |
