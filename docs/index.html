@@ -145,6 +145,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         <li><a href="#combining-multiple-processes">Combining multiple processes</a></li>
         <li><a href="#gonotrophic-cycle-with-a-negative-impact-of-ovipositioning">Gonotrophic cycle with a negative impact of ovipositioning</a></li>
         </ul></li>
+        <li><a href="#case-studies">Case studies</a></li>
         </ul>
 
         </div>
@@ -364,7 +365,12 @@ for hazard in hazards
     savefig("docs/figures/distr_$(hazard).png")
 end
 -->
-<table>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 42%" />
+<col style="width: 28%" />
+</colgroup>
 <thead>
 <tr class="header">
 <th style="text-align: left;">Process</th>
@@ -407,6 +413,11 @@ end
 <td style="text-align: left;">AgeNbinom</td>
 <td style="text-align: center;">devmn, devsd</td>
 <td style="text-align: right;">Negative binomial-distributed age-dependent process</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">AgeCustom</td>
+<td style="text-align: center;">User-defined hazard function, Stepper</td>
+<td style="text-align: right;">Age-dependent or accumulative stepping with a user-defined hazard function</td>
 </tr>
 </tbody>
 </table>
@@ -578,6 +589,96 @@ plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
 </ul>
 <figure>
 <img src="figures/gonotrophic_cycle.png" alt="Mortality, development, and ovipositioning" /><figcaption aria-hidden="true">Mortality, development, and ovipositioning</figcaption>
+</figure>
+<h1 id="case-studies">Case studies</h1>
+<p>## Nicholson's blowflies</p>
+<p>Contributed by Sean L. Wu <a href="https://github.com/slwu89">@slwu89</a>.</p>
+<p>Nicholson’s blowflies are a classic example of a time-delayed stage-structured population model, and was presented as a case study in the <a href="https://f1000research.com/articles/7-1220">sPop paper</a>. We reproduce that example here using Population.jl.</p>
+<p>The model comprises five distinct life-stages and exhibits stable quasi-cyclic oscillations. Although the model was originally constructed using delay differential equations, Population.jl adheres well to the observed dynamics despite the discrete time step. We demonstrate both deterministic and stochastic versions of the basic dynamical model.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Population</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Plots</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Distributions</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">using</span> Statistics</span></code></pre></div>
+<p>First we define parameters of the model.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define daily propensity of death</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    death <span class="op">=</span> [<span class="fl">0.07</span><span class="op">,</span> <span class="fl">0.004</span><span class="op">,</span> <span class="fl">0.003</span><span class="op">,</span> <span class="fl">0.0025</span><span class="op">,</span> <span class="fl">0.27</span>]</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define the expected duration of development (in days)</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    develop <span class="op">=</span> [<span class="fl">0.6</span><span class="op">,</span> <span class="fl">5.0</span><span class="op">,</span> <span class="fl">5.9</span><span class="op">,</span> <span class="fl">4.1</span><span class="op">,</span> <span class="cn">Inf</span>]</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Define the rest of the parameters</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    A0 <span class="op">=</span> <span class="fl">600.0</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> <span class="fl">8.5</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    tau <span class="op">=</span> <span class="fl">24</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># tau is a scaling factor to extend from daily to hourly iterations for more accurracy</span></span></code></pre></div>
+<p>Next we define a function to run the simulation for 300 days, in either stochastic or deterministic mode. The 5 life stages are stored in the vector <code>vec</code>. Each life stage has an <code>AgeConst</code> process for simulating mortality, which is independent of age in the blowflies model. It also has an <code>AgeFixed</code> process to simulate maturation, which has a deterministic (fixed) distribution in the blowflies model. Therefore variation in the stochastic version arises from the mortality process and egg laying, which is assumed to be drawn from a Poisson distribution centered on the deterministic mean.</p>
+<p>On each day we calculate the terms required for the mortality and development processes (<code>pr1</code> and <code>pr2</code>). Then we use <code>StepPop</code> to iterate the population for one day, and we store the output containing the total population size, dictionary of individuals completing development, and dictionary of all developing individuals for that stage in the vector <code>out</code>. Then we pass individuals who have completed development to the next stage life stage. Finally we compute the number of eggs produced by adults and add them to the egg stage.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>    <span class="co"># this function is a wrapper routine to simulate a deterministic or a stochastic time series</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> sim_blowfly(stoch)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>        output <span class="op">=</span> zeros(<span class="fl">300</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">,</span> <span class="fl">5</span>)</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># initiate 5 stages of the population and store them in a vector</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        vec <span class="op">=</span> [stoch ? sPop2(PopDataSto()) <span class="op">:</span> sPop2(PopDataDet()) <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">5</span>]</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        [AddProcess(v<span class="op">,</span> AgeConst()<span class="op">,</span> AgeFixed()) <span class="kw">for</span> v <span class="kw">in</span> vec]</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>        <span class="co"># add individuals to the initial stage (the egg stage)</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>        AddPop(vec[<span class="fl">1</span>]<span class="op">,</span> stoch ? <span class="dt">Int</span>(A0) <span class="op">:</span> <span class="dt">Float64</span>(A0))</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># record the initial conditions</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>        output[<span class="fl">1</span><span class="op">,</span> <span class="op">:</span>] <span class="op">=</span> [GetPop(v) <span class="kw">for</span> v <span class="kw">in</span> vec]</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># vector to store the output each day</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>        out <span class="op">=</span> <span class="dt">Vector</span>{<span class="dt">Any</span>}(<span class="cn">nothing</span><span class="op">,</span> length(vec))</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># iterate for 300 days</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>        <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">300</span><span class="op">*</span>tau        </span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>            <span class="co"># for each stage, repeat the following</span></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>            <span class="kw">for</span> m <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>length(vec)</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>                <span class="co"># iterate the stage for one time unit</span></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>                pr1 <span class="op">=</span> (prob <span class="op">=</span> death[m]<span class="op">/</span>tau<span class="op">,</span>)</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>                pr2 <span class="op">=</span> (devmn <span class="op">=</span> develop[m]<span class="op">*</span>tau<span class="op">,</span>)</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>                out[m] <span class="op">=</span> StepPop(vec[m]<span class="op">,</span> pr1<span class="op">,</span> pr2)</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>            <span class="kw">end</span></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>            <span class="co"># and pass on to the next stage (if not the adult stage)</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>            <span class="kw">for</span> m <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>length(vec)<span class="op">-</span><span class="fl">1</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>                <span class="kw">for</span> (q<span class="op">,</span>n) <span class="kw">in</span> out[m][<span class="fl">3</span>][<span class="fl">2</span>]</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>                    AddPop(vec[m<span class="op">+</span><span class="fl">1</span>]<span class="op">,</span> n)</span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>                <span class="kw">end</span></span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>            <span class="kw">end</span></span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a>            <span class="co"># calculate the number of eggs to produce</span></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a>            eggs <span class="op">=</span> q <span class="op">*</span> GetPop(vec[<span class="fl">5</span>]) <span class="op">*</span> exp(<span class="op">-</span>GetPop(vec[<span class="fl">5</span>])<span class="op">/</span>A0)<span class="op">/</span>tau</span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a>            <span class="kw">if</span> stoch</span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>                eggs <span class="op">=</span> rand(Poisson(eggs))</span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>            <span class="kw">end</span></span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>            AddPop(vec[<span class="fl">1</span>]<span class="op">,</span> eggs)</span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>            <span class="co"># record the current state</span></span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a>            output[n<span class="op">+</span><span class="fl">1</span><span class="op">,</span> <span class="op">:</span>] <span class="op">=</span> [GetPop(v) <span class="kw">for</span> v <span class="kw">in</span> vec]</span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a>        <span class="kw">end</span></span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>        <span class="co"># return the results</span></span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> output</span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span></code></pre></div>
+<p>We run the deterministic model, and sample 100 trajectories from the stochastic model. For the stochastic plots we show the median as a solid line and the upper and lower boundaries of the 95% quantiles as dashed lines. We plot results from the last 200 days of simulation.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>    out <span class="op">=</span> sim_blowfly(<span class="ex">false</span>)</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    xtick <span class="op">=</span> <span class="fl">100</span><span class="op">:</span>(<span class="fl">1</span><span class="op">/</span>tau)<span class="op">:</span><span class="fl">300</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    plot(xtick<span class="op">,</span> out[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">5</span>]<span class="op">,</span> label <span class="op">=</span> <span class="st">&quot;Adults&quot;</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>blue<span class="op">,</span> ylim <span class="op">=</span> [<span class="fl">0</span><span class="op">,</span><span class="fl">6000</span>])</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    plot<span class="op">!</span>(xtick<span class="op">,</span> out[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">1</span>]<span class="op">,</span> label <span class="op">=</span> <span class="st">&quot;Eggs&quot;</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>red)</span></code></pre></div>
+<figure>
+<img src="figures/blowfly_figure1.png" alt="Deterministic dynamics" /><figcaption aria-hidden="true">Deterministic dynamics</figcaption>
+</figure>
+<div class="sourceCode" id="cb18"><pre class="sourceCode julia"><code class="sourceCode julia"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>    outs <span class="op">=</span> [sim_blowfly(<span class="ex">true</span>) <span class="kw">for</span> n <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">100</span>]</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    outs <span class="op">=</span> cat(outs<span class="op">...,</span> dims<span class="op">=</span><span class="fl">3</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    outs_adult_qt <span class="op">=</span> [quantile(outs[i<span class="op">,</span><span class="fl">5</span><span class="op">,:</span>]<span class="op">,</span> [<span class="fl">0.025</span><span class="op">,</span> <span class="fl">0.5</span><span class="op">,</span> <span class="fl">0.975</span>]) <span class="kw">for</span> i <span class="kw">in</span> axes(outs<span class="op">,</span><span class="fl">1</span>)]</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    outs_adult_qt <span class="op">=</span> transpose(hcat(outs_adult_qt<span class="op">...</span>))</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    outs_eggs_qt <span class="op">=</span> [quantile(outs[i<span class="op">,</span><span class="fl">1</span><span class="op">,:</span>]<span class="op">,</span> [<span class="fl">0.025</span><span class="op">,</span> <span class="fl">0.5</span><span class="op">,</span> <span class="fl">0.975</span>]) <span class="kw">for</span> i <span class="kw">in</span> axes(outs<span class="op">,</span><span class="fl">1</span>)]</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    outs_eggs_qt <span class="op">=</span> transpose(hcat(outs_eggs_qt<span class="op">...</span>))</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    plot(xtick<span class="op">,</span> outs_adult_qt[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">2</span>]<span class="op">,</span> linestyle <span class="op">=</span> <span class="op">:</span>solid<span class="op">,</span> label <span class="op">=</span> <span class="st">&quot;Adults&quot;</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>blue<span class="op">,</span> ylim <span class="op">=</span> [<span class="fl">0</span><span class="op">,</span><span class="fl">6000</span>])</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    plot<span class="op">!</span>(xtick<span class="op">,</span> outs_adult_qt[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">3</span>]<span class="op">,</span> linestyle <span class="op">=</span> <span class="op">:</span>dash<span class="op">,</span> label <span class="op">=</span> <span class="ex">false</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>blue)</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    plot<span class="op">!</span>(xtick<span class="op">,</span> outs_adult_qt[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">1</span>]<span class="op">,</span> linestyle <span class="op">=</span> <span class="op">:</span>dash<span class="op">,</span> label <span class="op">=</span> <span class="ex">false</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>blue)</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    plot<span class="op">!</span>(xtick<span class="op">,</span> outs_eggs_qt[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">2</span>]<span class="op">,</span> linestyle <span class="op">=</span> <span class="op">:</span>solid<span class="op">,</span> label <span class="op">=</span> <span class="st">&quot;Eggs&quot;</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>red)</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>    plot<span class="op">!</span>(xtick<span class="op">,</span> outs_eggs_qt[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">3</span>]<span class="op">,</span> linestyle <span class="op">=</span> <span class="op">:</span>dash<span class="op">,</span> label <span class="op">=</span> <span class="ex">false</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>red)</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    plot<span class="op">!</span>(xtick<span class="op">,</span> outs_eggs_qt[<span class="fl">100</span><span class="op">*</span>tau<span class="op">+</span><span class="fl">1</span><span class="op">:</span><span class="kw">end</span><span class="op">,</span><span class="fl">1</span>]<span class="op">,</span> linestyle <span class="op">=</span> <span class="op">:</span>dash<span class="op">,</span> label <span class="op">=</span> <span class="ex">false</span><span class="op">,</span> color <span class="op">=</span> <span class="op">:</span>red)</span></code></pre></div>
+<figure>
+<img src="figures/blowfly_figure2.png" alt="Stochastic dynamics" /><figcaption aria-hidden="true">Stochastic dynamics</figcaption>
 </figure>
             </div>
     </div>

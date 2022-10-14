@@ -26,7 +26,7 @@ export AccHaz, AgeHaz, CusHaz, HazTypes,
        StepPop, AddPop, GetPop, MemberKey,
        set_acc_eps, EmptyPop, GetPoptable,
        AddProcess, AccStepper, AgeStepper, CustomStepper,
-       StepperTypes
+       StepperTypes, SplitPop
 
 using Distributions
 using Random: rand
@@ -723,6 +723,34 @@ function GetPop(pop::sPop2)
         size += n
     end
     return size
+end
+
+# --------------------------------------------------------------------------------
+# Split a Population
+# --------------------------------------------------------------------------------
+
+"""
+Extract individuals from a population
+
+A function of fun(MemerKey,size) should be supplied to determine the number of
+individuals to extract. Returns the population table
+
+"""
+function SplitPop(pop::sPop2, fun::Function)
+    poptablenext = Dict{keytype(pop.data.poptable),valtype(pop.data.poptable)}()
+    for (q,n) in pop.data.poptable
+        m = fun(q,n)
+        n -= m
+        if m > zero(m)
+            poptablenext[q] = m
+        end
+        if n > zero(n)
+            pop.data.poptable[q] = n
+        else
+            delete!(pop.data.poptable, q)
+        end
+    end
+    return poptablenext
 end
 
 # --------------------------------------------------------------------------------
