@@ -482,7 +482,7 @@ On each day we calculate the terms required for the mortality and development pr
         vec = [stoch ? sPop2(PopDataSto()) : sPop2(PopDataDet()) for n in 1:5]
         [AddProcess(v, AgeConst(), AgeFixed()) for v in vec]
         # add individuals to the initial stage (the egg stage)
-        AddPop(vec[1], stoch ? Int(A0) : Float64(A0))
+        AddPop(vec[1], stoch ? 500 : 500.0)
         # record the initial conditions
         output[1, :] = [GetPop(v) for v in vec]
         # vector to store the output each day
@@ -495,11 +495,11 @@ On each day we calculate the terms required for the mortality and development pr
                 pr1 = (prob = death[m]/tau,)
                 pr2 = (devmn = develop[m]*tau,)
                 out[m] = StepPop(vec[m], pr1, pr2)
-            end
-            # and pass on to the next stage (if not the adult stage)
-            for m in 1:length(vec)-1
-                for (q,n) in out[m][3][2]
-                    AddPop(vec[m+1], n)
+                # and pass on to the next stage (if not the adult stage)
+                if m > one(m)
+                    for (q,s) in out[m-1][3][2]
+                        AddPop(vec[m], s, 0.0, 0.0)
+                    end
                 end
             end
             # calculate the number of eggs to produce
@@ -516,7 +516,7 @@ On each day we calculate the terms required for the mortality and development pr
     end
 ```
 
-We run the deterministic model, and sample 100 trajectories from the stochastic model. For the stochastic plots we show the median as a solid line and the upper and lower boundaries of the 95% quantiles as dashed lines. We plot results from the last 200 days of simulation.
+We run the deterministic model, and sample 5 trajectories from the stochastic model. We plot results from the last 200 days of simulation.
 
 ```julia
     out = sim_blowfly(false)
@@ -528,22 +528,12 @@ We run the deterministic model, and sample 100 trajectories from the stochastic 
 ![Deterministic dynamics](figures/blowfly_figure1.png)
 
 ```julia
-    outs = [sim_blowfly(true) for n in 1:100]
-    outs = cat(outs..., dims=3)
-
-    outs_adult_qt = [quantile(outs[i,5,:], [0.025, 0.5, 0.975]) for i in axes(outs,1)]
-    outs_adult_qt = transpose(hcat(outs_adult_qt...))
-
-    outs_eggs_qt = [quantile(outs[i,1,:], [0.025, 0.5, 0.975]) for i in axes(outs,1)]
-    outs_eggs_qt = transpose(hcat(outs_eggs_qt...))
-
-    plot(xtick, outs_adult_qt[100*tau+1:end,2], linestyle = :solid, label = "Adults", color = :blue, ylim = [0,6000])
-    plot!(xtick, outs_adult_qt[100*tau+1:end,3], linestyle = :dash, label = false, color = :blue)
-    plot!(xtick, outs_adult_qt[100*tau+1:end,1], linestyle = :dash, label = false, color = :blue)
-
-    plot!(xtick, outs_eggs_qt[100*tau+1:end,2], linestyle = :solid, label = "Eggs", color = :red)
-    plot!(xtick, outs_eggs_qt[100*tau+1:end,3], linestyle = :dash, label = false, color = :red)
-    plot!(xtick, outs_eggs_qt[100*tau+1:end,1], linestyle = :dash, label = false, color = :red)
+    xtick = 100:(1/tau):300
+    plot((100,300),(0,6000), linestyle=:none)
+    for n in 1:5
+        out = sim_blowfly(true)
+        plot!(xtick, out[100*tau+1:end,5], linestyle = :solid, label = n == 1 ? "Adults" : :none, color = :blue, ylim = [0,6000])
+    end
 ```
 
 ![Stochastic dynamics](figures/blowfly_figure2.png)
