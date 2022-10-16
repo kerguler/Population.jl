@@ -23,7 +23,7 @@ export AccHaz, AgeHaz, CusHaz, HazTypes,
        AgeFixed, AgeNbinom, AgeGamma, 
        AgeConst, AgeCustom, AgeDummy,
        PopDataDet, PopDataSto, sPop2, 
-       StepPop, AddPop, GetPop, MemberKey,
+       StepPop, AddPop, GetPop,
        set_acc_eps, EmptyPop, GetPoptable,
        AddProcess, AccStepper, AgeStepper, CustomStepper,
        StepperTypes, SplitPop
@@ -59,7 +59,7 @@ Hazard calculation for an accumulative process
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function acc_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+function acc_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Vector{Float64})
     h0 = d == zero(d) ? 0.0 : heval(d - one(d), k, theta)
     h1 = heval(d, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
@@ -71,7 +71,7 @@ Hazard calculation for an age-dependent process
 The hazard is computed as ``\\frac{F(x,k,θ) - F(x-1,k,θ)}{1 - F(x-1,k,θ)} ``
 
 """
-function age_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+function age_hazard_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Vector{Float64})
     h0 = q == zero(q) ? 0.0 : heval(q - one(q), k, theta)
     h1 = heval(q, k, theta)
     h0 == 1.0 ? 1.0 : 1.0 - (1.0 - h1)/(1.0 - h0) # mortality
@@ -81,7 +81,7 @@ end
 Hazard calculation for a constant-probability process
 
 """
-function age_const_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+function age_const_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Vector{Float64})
     Float64(theta)
 end
 
@@ -89,7 +89,7 @@ end
 Hazard calculation for a dummy process
 
 """
-function age_dummy_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Tuple)
+function age_dummy_calc(heval::Function, d::Number, q::Number, k::Number, theta::Number, qkey::Vector{Float64})
     Float64(0.0)
 end
 
@@ -97,7 +97,7 @@ end
 Exit check for an age-dependent process
 
 """
-function age_hazard_check(a::Int64)
+function age_hazard_check(a::Float64)
     return false
 end
 
@@ -105,7 +105,7 @@ end
 Exit check for a custom-probability process
 
 """
-function age_custom_check(a::Int64)
+function age_custom_check(a::Float64)
     return false
 end
 
@@ -523,34 +523,6 @@ struct AgeGamma <: AgeHaz
     end
 end
 
-
-# --------------------------------------------------------------------------------
-# Combined age- and accumulative-development population members
-# --------------------------------------------------------------------------------
-
-"""
-A population member class
-
-A struct containing the state of a group of individuals with the same qualities.
-In current implementation, at most 5 different qualities are allowed in a state.
-The struct can be constructed by passing the process indicator (e.g. age, development indicator, etc.) to its constructor.
-It can also be constructed with a hazard data type or a list of hazards and an instructed change in one of the process counters.
-
-"""
-struct MemberKey
-    key::Tuple
-    function MemberKey(n::Number...)
-        new(n)
-    end
-    function MemberKey(h::Vector{HazTypes})
-        new(([x.stepper().step for x in h]...,))
-    end
-    function MemberKey(m::MemberKey, h::Vector{HazTypes}, n::Int64, d::Int64, k::Number)
-        return new(Tuple([n==i ? h[i].stepper(m.key[i],d,k).step : m.key[i] for i in 1:lastindex(m.key)]))
-    end
-end
-
-
 # --------------------------------------------------------------------------------
 # Population data types
 # --------------------------------------------------------------------------------
@@ -561,13 +533,13 @@ abstract type PopDataTypes end
 Population data for deterministic models
 
 Return a struct inheriting from `PopDataTypes` with:
-- `poptable`: a `Dict` mapping `Float64` by `MemberKey` keys
+- `poptable`: a `Dict` mapping `Float64` by `Vector{Float64}` keys
 
 """
 struct PopDataDet <: PopDataTypes
-    poptable::Dict{MemberKey, Float64}
+    poptable::Dict{Vector{Float64}, Float64}
     function PopDataDet()
-        new(Dict{MemberKey, Float64}())
+        new(Dict{Vector{Float64}, Float64}())
     end
 end
 
@@ -575,13 +547,13 @@ end
 Population data for stochastic models
 
 Return a struct inheriting from `PopDataTypes` with:
-- `poptable`: a `Dict` mapping `Int64` by `MemberKey` keys
+- `poptable`: a `Dict` mapping `Int64` by `Vector{Float64}` keys
 
 """
 struct PopDataSto <: PopDataTypes
-    poptable::Dict{MemberKey, Int64}
+    poptable::Dict{Vector{Float64}, Int64}
     function PopDataSto()
-        new(Dict{MemberKey, Int64}())
+        new(Dict{Vector{Float64}, Int64}())
     end
 end
 
@@ -591,7 +563,7 @@ Add key-value pair to development table
 Add the key `key` and value `n` to the development table `data`. If the key already exists, `n` is added to its value, otherwise a new entry is created.
 
 """
-function add_key(data::Dict{MemberKey, T}, key::MemberKey, n::T) where {T<:Number}
+function add_key(data::Dict{Vector{Float64}, T}, key::Vector{Float64}, n::T) where {T<:Number}
     if haskey(data, key)
         data[key] += n
     else
@@ -605,13 +577,13 @@ Tabulate development table
 Return an Array of `Dict` objects, which index individual counts by each process.
 
 """
-function GetPoptable(poptable::Dict{M, T}) where {T<:Number, M<:MemberKey}
+function GetPoptable(poptable::Dict{M, T}) where {T<:Number, M<:Vector{Float64}}
     r = []
     for (x,n) in poptable
-        for i in 1:length(x.key)
-            if x.key[i] >= 0
+        for i in 1:length(x)
+            if x[i] >= 0
                 if length(r)<i; push!(r,Dict()); end
-                if haskey(r[i], x.key[i]); r[i][x.key[i]] += n; else; r[i][x.key[i]] = n; end
+                if haskey(r[i], x[i]); r[i][x[i]] += n; else; r[i][x[i]] = n; end
             end
         end
     end
@@ -686,6 +658,23 @@ function AddProcess(pop::sPop2, h::HazTypes...)
         push!(pop.hazards, haz)
     end
 end
+
+
+"""
+A population member creation / iteration
+"""
+function MemberKey(n::Number...)
+    return Vector{Float64}([m for m in n])
+end
+
+function MemberKey(h::Vector{HazTypes})
+    Vector{Float64}([x.stepper().step for x in h])
+end
+
+function MemberKey(m::Vector{Float64}, h::Vector{HazTypes}, n::Int64, d::Int64, k::Number)
+    return Vector{Float64}([n==i ? h[i].stepper(m[i],d,k).step : m[i] for i in 1:lastindex(m)])
+end
+
 
 """
 Add individuals to a population
@@ -811,12 +800,12 @@ function StepPop(pop::sPop2, pars::NamedTuple...)
             while n > zero(valtype(pop.data.poptable))
                 q2 = MemberKey(q, pop.hazards, i, dev, k)
                 #
-                if hazard.check(q2.key[i])
-                    add_key(poptabledone[i],q2,n)
+                if hazard.check(q2[i])
+                    add_key(poptabledone[i], q2, n)
                     completed[i] += n
                     n = zero(valtype(pop.data.poptable))
                 else
-                    p = hazard.func(hazard.eval, dev, q2.key[i], k, theta, q2.key)
+                    p = hazard.func(hazard.eval, dev, q2[i], k, theta, q2)
                     n2 = pop.update(n, p)
                     n -= n2
                     #
