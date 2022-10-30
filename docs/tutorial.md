@@ -516,7 +516,7 @@ On each day we calculate the terms required for the mortality and development pr
     end
 ```
 
-We run the deterministic model, and sample 5 trajectories from the stochastic model. We plot results from the last 200 days of simulation.
+We run the deterministic model, and sample 100 trajectories from the stochastic model. We plot results from the last 200 days of simulation.
 
 ```julia
     out = sim_blowfly(false)
@@ -528,12 +528,22 @@ We run the deterministic model, and sample 5 trajectories from the stochastic mo
 ![Deterministic dynamics](figures/blowfly_figure1.png)
 
 ```julia
-    xtick = 100:(1/tau):300
-    plot((100,300),(0,6000), linestyle=:none)
-    for n in 1:5
-        out = sim_blowfly(true)
-        plot!(xtick, out[100*tau+1:end,5], linestyle = :solid, label = n == 1 ? "Adults" : :none, color = :blue, ylim = [0,6000])
-    end
+    outs = [sim_blowfly(true) for n in 1:100]
+    outs = cat(outs..., dims=3)
+
+    outs_adult_qt = [quantile(outs[i,5,:], [0.025, 0.5, 0.975]) for i in axes(outs,1)]
+    outs_adult_qt = transpose(hcat(outs_adult_qt...))
+
+    outs_eggs_qt = [quantile(outs[i,1,:], [0.025, 0.5, 0.975]) for i in axes(outs,1)]
+    outs_eggs_qt = transpose(hcat(outs_eggs_qt...))
+
+    xtick = (0:(size(outs_adult_qt)[1]-1))/24.0
+
+    plot(xtick, outs_adult_qt[:,3], color="#0571b0", fillrange=outs_adult_qt[:,1], lw=1, alpha=0.5, label=:none)
+    plot!(xtick, outs_adult_qt[:,2], color="#0571b0", lw=2, label=:none)
+    plot!(xtick, outs_eggs_qt[:,3], color="#d6604d", fillrange=outs_eggs_qt[:,1], lw=1, alpha=0.5, label=:none)
+    plot!(xtick, outs_eggs_qt[:,2], color="#d6604d", lw=2, label=:none)
+    xlims!(100,300)
 ```
 
 ![Stochastic dynamics](figures/blowfly_figure2.png)
