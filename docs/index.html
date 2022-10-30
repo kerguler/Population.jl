@@ -145,7 +145,10 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
         <li><a href="#combining-multiple-processes">Combining multiple processes</a></li>
         <li><a href="#gonotrophic-cycle-with-a-negative-impact-of-ovipositioning">Gonotrophic cycle with a negative impact of ovipositioning</a></li>
         </ul></li>
-        <li><a href="#case-studies">Case studies</a></li>
+        <li><a href="#case-studies">Case studies</a>
+        <ul>
+        <li><a href="#nicholsons-blowflies">Nicholson’s blowflies</a></li>
+        </ul></li>
         </ul>
 
         </div>
@@ -591,7 +594,7 @@ plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
 <img src="figures/gonotrophic_cycle.png" alt="Mortality, development, and ovipositioning" /><figcaption aria-hidden="true">Mortality, development, and ovipositioning</figcaption>
 </figure>
 <h1 id="case-studies">Case studies</h1>
-<p>## Nicholson's blowflies</p>
+<h2 id="nicholsons-blowflies">Nicholson’s blowflies</h2>
 <p>Contributed by Sean L. Wu <a href="https://github.com/slwu89">@slwu89</a>.</p>
 <p>Nicholson’s blowflies are a classic example of a time-delayed stage-structured population model, and was presented as a case study in the <a href="https://f1000research.com/articles/7-1220">sPop paper</a>. We reproduce that example here using Population.jl.</p>
 <p>The model comprises five distinct life-stages and exhibits stable quasi-cyclic oscillations. Although the model was originally constructed using delay differential equations, Population.jl adheres well to the observed dynamics despite the discrete time step. We demonstrate both deterministic and stochastic versions of the basic dynamical model.</p>

@@ -439,7 +439,7 @@ The script adds all individuals completing a gonotrophic cycle (_out[3][2]_) bac
 
 # Case studies
 
-## Nicholson\'s blowflies
+## Nicholson's blowflies
 
 Contributed by Sean L. Wu [\@slwu89](https://github.com/slwu89).
 
