@@ -26,8 +26,7 @@ Alternatively, one could clone or download and extract the development version f
 The following creates a pseudo-structured population with 10 individuals and iterates it one step with 0 mortality and an Erlang-distributed development time of $20\pm5$ steps.
 
 ```julia
-    pop = sPop2(PopDataSto())
-    AddProcess(pop, AccErlang())
+    pop = sPop2(PopDataSto(), AccErlang())
 
     AddPop(pop, 10)
     pr = (devmn=20.0, devsd=5.0)
@@ -91,9 +90,7 @@ An alternative representation with a structured population can be constructed. F
     using Plots
     using Distributions
 
-    pop = sPop2(PopDataDet())
-
-    AddProcess(pop, AccErlang())
+    pop = sPop2(PopDataDet(), AccErlang())
 
     pr1 = (devmn=20.0, devsd=5.0)
 
@@ -111,8 +108,7 @@ An alternative representation with a structured population can be constructed. F
     plot!(xr, 10.0*(1.0 .- cdf(Gamma(k,theta),xr)), c="gray", lw=4, label="Expected")
 -->
 ```julia
-    pop = sPop2(PopDataDet())
-    AddProcess(pop, AccErlang())
+    pop = sPop2(PopDataDet(), AccErlang())
 
     AddPop(pop, 10.0)
     out = [0 10.0 0.0]
@@ -133,8 +129,7 @@ With a simple modification, we can simulate how the dynamics vary when each indi
 plot!(outst[:,1], outst[:,2], line = :scatter, c="blue", ms=8, label="Stochastic")
 -->
 ```julia
-    pop = sPop2(PopDataSto())
-    AddProcess(pop, AccErlang())
+    pop = sPop2(PopDataSto(), AccErlang())
 
     AddPop(pop, 10)
     outst = [0 10 0.0]
@@ -160,8 +155,7 @@ sd = 10.0
 xr = 0:50
 
 function simDet(hazard::HazTypes)
-    pop = sPop2(PopDataDet())
-    AddProcess(pop, hazard)
+    pop = sPop2(PopDataDet(), hazard)
     AddPop(pop, N)
     retd = [0 N 0.0]
     for n in xr[2:end]
@@ -173,8 +167,7 @@ function simDet(hazard::HazTypes)
 end
 
 function simStoch(hazard::HazTypes)
-    pop = sPop2(PopDataSto())
-    AddProcess(pop, hazard)
+    pop = sPop2(PopDataSto(), hazard)
     rets = []
     for r in 1:1000
         AddPop(pop, Int64(N))
@@ -270,8 +263,7 @@ end
 Multiple processes can be added to an _sPop2_ to represent more complex dynamics. For instance, we can represent survival with a daily constant rate and development with an Erlang-distributed accumulative process. The processes are executed in the order they are added to the _sPop2_.
 
 <!---
-a = sPop2(PopDataDet())
-AddProcess(a, AgeConst(), AccErlang())
+a = sPop2(PopDataDet(), AgeConst(), AccErlang())
 AddPop(a,100.0)
 ret = [0 GetPop(a) 0.0 0.0]
 for i in 0:100
@@ -289,8 +281,7 @@ plot!(xr,[100.0*(1 .- cdf(Geometric(1.0/60.0),x-1)) for x in xr], lw=2, label="G
 -->
 
 ```julia
-a = sPop2(PopDataDet())
-AddProcess(a, AgeConst(), AccErlang())
+a = sPop2(PopDataDet(), AgeConst(), AccErlang())
 AddPop(a, 100.0)
 ret = [0 GetPop(a) 0.0 0.0]
 for i in 0:100
@@ -316,10 +307,9 @@ In order to represent the lifetime of this female mosquito, we will employ $3$ p
  * A dummy process to count the number of ovipositioning events
 
 ```julia
-    # Declare an sPop2 population with deterministic dynamics
-    a = sPop2(PopDataDet())
-    # Define three processes in this order: Mortality, Gonotropic cycle, Ovipositioning
-    AddProcess(a, AgeCustom(custom, AgeStepper), AgeGamma(), AgeDummy())
+    # Declare an sPop2 population with deterministic dynamics,
+    # and define three processes in this order: Mortality, Gonotropic cycle, Ovipositioning
+    a = sPop2(PopDataDet(), AgeCustom(custom, AgeStepper), AgeGamma(), AgeDummy())
 ```
 
 The $3^{rd}$ process is a dummy (_AgeDummy_), which does not affect the population or even does not posess a time counter. The $2^{nd}$ process is the regular age-dependent gamma-distributed development process (_AgeGamma_).
@@ -373,9 +363,8 @@ function custom(heval::Function, d::Number, q::Number, k::Number, theta::Number,
 end
 
 function SimDet()
-    a = sPop2(PopDataDet())
-    # Mortality, Gonotropic cycle, Ovipositioning
-    AddProcess(a, AgeCustom(custom,AgeStepper), AgeGamma(), AgeDummy())
+    # Deterministic dynamics, Mortality, Gonotropic cycle, Ovipositioning
+    a = sPop2(PopDataDet(), AgeCustom(custom,AgeStepper), AgeGamma(), AgeDummy())
     AddPop(a,1000.0)
     ret = [0 0.0]
     for i in 0:480
@@ -403,9 +392,8 @@ plot(retd[:,1]/24.0,retd[:,2], lw=2, label="Daily egg laying")
         return sPop2.age_hazard_calc(sPop2.age_gamma_haz, 0, qkey[1], k, theta, qkey)
     end
 
-    a = sPop2(PopDataDet())
-    # Mortality, Gonotropic cycle, Ovipositioning
-    AddProcess(a, AgeCustom(custom, AgeStepper), AgeGamma(), AgeDummy())
+    # Stochastic dynamics, Mortality, Gonotropic cycle, Ovipositioning
+    a = sPop2(PopDataDet(), AgeCustom(custom, AgeStepper), AgeGamma(), AgeDummy())
     AddPop(a,1000.0)
     ret = [0 0.0]
     for i in 0:480
@@ -479,8 +467,7 @@ On each day we calculate the terms required for the mortality and development pr
     function sim_blowfly(stoch)
         output = zeros(300*tau+1, 5)
         # initiate 5 stages of the population and store them in a vector
-        vec = [stoch ? sPop2(PopDataSto()) : sPop2(PopDataDet()) for n in 1:5]
-        [AddProcess(v, AgeConst(), AgeFixed()) for v in vec]
+        vec = [stoch ? sPop2(PopDataSto(), AgeConst(), AgeFixed()) : sPop2(PopDataDet(), AgeConst(), AgeFixed()) for n in 1:5]
         # add individuals to the initial stage (the egg stage)
         AddPop(vec[1], stoch ? 500 : 500.0)
         # record the initial conditions

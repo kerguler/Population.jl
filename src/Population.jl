@@ -25,7 +25,7 @@ export AccHaz, AgeHaz, CusHaz, HazTypes,
        PopDataDet, PopDataSto, sPop2, 
        StepPop, AddPop, GetPop,
        set_acc_eps, EmptyPop, GetPoptable,
-       AddProcess, AccStepper, AgeStepper, CustomStepper,
+       AccStepper, AgeStepper, CustomStepper,
        StepperTypes, SplitPop
 
 using Distributions
@@ -632,31 +632,23 @@ A population
 
 A struct containing a single population. It can be constructed by passing a population data type to its constructor,
 `d` should be either `PopDataSto` or `PopDataDet` for stochastic or deterministic dynamics, respectively.
+The constructor should also contain a list of `HazTypes` to define processes in the order of execution.
 
 """
 struct sPop2
     data::PopDataTypes
     update::UpdateTypes
     hazards::Vector{HazTypes}
-    function sPop2(d::PopDataTypes)
+    function sPop2(d::PopDataTypes, h::HazTypes...)
         u::UpdateTypes = typeof(d) <: PopDataDet ? DeterministicUpdate() : StochasticUpdate()
-        new(d, u, Vector{HazTypes}())
+        ht = Vector{HazTypes}([h...])
+        new(d, u, ht)
     end
 end
 
 # additional method so we can call `GetPoptable` on the generic pop object
 function GetPoptable(pop::sPop2)
     GetPoptable(pop.data.poptable)
-end
-
-"""
-Add processes to the Population in the order to be executed.
-
-"""
-function AddProcess(pop::sPop2, h::HazTypes...)
-    for haz in h
-        push!(pop.hazards, haz)
-    end
 end
 
 
