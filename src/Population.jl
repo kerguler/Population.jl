@@ -21,7 +21,7 @@ module Population
 export AccHaz, AgeHaz, CusHaz, HazTypes,
        AccFixed, AccPascal, AccErlang,
        AgeFixed, AgeNbinom, AgeGamma, 
-       AgeConst, AgeCustom, AgeDummy,
+       AgeConst, AgeCustom, AgeDummy, PrbConst,
        PopDataDet, PopDataSto, sPop2, 
        StepPop, AddPop, GetPop, MemberKey,
        set_acc_eps, EmptyPop, GetPoptable,
@@ -332,6 +332,32 @@ struct AgeConst <: AgeHaz
     stepper::Type{S} where {S <: StepperTypes}
     function AgeConst()
         new(age_const_pars, age_const_haz, age_const_calc, age_hazard_check, AgeStepper)
+    end
+end
+
+"""
+Constant Probability Age-Independent Development Process
+
+This age-independent development process employs a constant probability of occurrence per step.
+
+`PrbConst()` returns a struct with fields:
+    - `pars`    takes a NamedTuple argument with `devmn` and `devsd` which computes `k`, `theta`, and `stay` (returned as a tuple in that order)
+    - `eval`    takes arguments `i`, `k`, and `theta` and returns the cumulative density function evaluated at `i`
+    - `func`    takes arguments `heval`, `d`, `q`, `k`, `theta`, and `qkey` and returns the hazard
+    - `check`   takes a Number argument and checks if process indicator breached completion threshold (by default 1.0)
+    - `stepper` takes a StepperTypes argument (e.g. `AccStepper`, `AgeStepper`, or `CustomStepper`).
+    
+The struct `PrbConst` inherits from the abstract type `AgeHaz` (which itself has supertype `HazTypes`).
+
+"""
+struct PrbConst <: AgeHaz
+    pars::Function
+    eval::Function
+    func::Function
+    check::Function
+    stepper::Type{S} where {S <: StepperTypes}
+    function PrbConst()
+        new(age_const_pars, age_const_haz, age_const_calc, age_hazard_check, CustomStepper)
     end
 end
 
